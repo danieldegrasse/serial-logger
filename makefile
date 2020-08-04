@@ -73,7 +73,7 @@ OBJECTS += $(patsubst %.asm, %.obj, $(ASM_FILES))
 NAME = $(strip $(patsubst %.cfg, %, $(wildcard *.cfg)))
 
 ###### return example name #######
-EXAMPLENAME = $(notdir $(shell $(pwd)))
+PROG = sd_logger
 
 ###### Extend compiler options here ######
 
@@ -84,7 +84,7 @@ LFLAGS +=
 
 .PRECIOUS: %/compiler.opt %/linker.cmd
 
-all: $(EXAMPLENAME).out
+all: $(PROG).out
 
 %/compiler.opt: %/linker.cmd;
 
@@ -108,13 +108,24 @@ all: $(EXAMPLENAME).out
 	@ echo Building $@
 	@ $(CC)  $(CFLAGS) $< -c @$(NAME)/compiler.opt -o $@
 
-$(EXAMPLENAME).out: $(OBJECTS) $(NAME)/linker.cmd
+$(PROG).out: $(OBJECTS) $(NAME)/linker.cmd
 	@ echo linking...
-	@ $(LNK)  $(OBJECTS)  $(LFLAGS) -o $(EXAMPLENAME).out
+	@ $(LNK)  $(OBJECTS)  $(LFLAGS) -o $(PROG).out
 
 clean:
 	@ echo Cleaning...
 	@ $(call remove, $(OBJECTS))
-	@ $(call remove, $(EXAMPLENAME).out)
+	@ $(call remove, $(PROG).out)
 	@ $(call remove, $(NAME).map)
 	@ $(RMDIR) $(NAME)
+
+debug: $(PROG).out
+	# Start gdb
+	$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gdb --command gdb.command
+
+debugserver:
+	# Run openocd
+	/usr/bin/openocd -f /usr/share/openocd/scripts/board/ek-tm4c123gxl.cfg
+
+.PHONY: debug debugserver
+	
