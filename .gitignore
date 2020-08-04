@@ -1,4 +1,4 @@
 *.out
 *.obj
 *.map
-
+sd_logger
