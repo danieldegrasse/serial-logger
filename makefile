@@ -1,4 +1,48 @@
-include ../makedefs
+###### CHANGE LOCATION TO YOUR CODEGEN TOOLS INSTALL DIR. UNIX PATH (no backslashes) #######
+CODEGEN_INSTALL_DIR = /usr
+
+CC = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gcc"
+LNK = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gcc"
+
+XDC_INSTALL_DIR := /home/danieldegrasse/ti/xdctools_3_32_00_06_core
+TIRTOS_INSTALL_DIR := /home/danieldegrasse/ti/tirtos_tivac_2_16_00_08
+TIDRIVERS_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/tidrivers_tivac_2_16_00_08
+BIOS_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/bios_6_45_01_29
+NDK_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/ndk_2_25_00_09
+NS_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/ns_1_11_00_10
+UIA_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/uia_2_00_05_50
+TIVAWARE_INSTALL_DIR ?= $(TIRTOS_INSTALL_DIR)/products/TivaWare_C_Series-2.1.1.71b
+
+TIRTOS_PACKAGES_DIR = $(TIRTOS_INSTALL_DIR)/packages
+TIDRIVERS_PACKAGES_DIR = $(TIDRIVERS_INSTALL_DIR)/packages
+BIOS_PACKAGES_DIR = $(BIOS_INSTALL_DIR)/packages
+NDK_PACKAGES_DIR = $(NDK_INSTALL_DIR)/packages
+NS_PACKAGES_DIR = $(NS_INSTALL_DIR)/packages
+UIA_PACKAGES_DIR = $(UIA_INSTALL_DIR)/packages
+
+XDCPATH = $(TIRTOS_PACKAGES_DIR);$(TIDRIVERS_PACKAGES_DIR);$(BIOS_PACKAGES_DIR);$(NDK_PACKAGES_DIR);$(NS_PACKAGES_DIR);$(UIA_PACKAGES_DIR);
+
+CFLAGS = -I$(TIVAWARE_INSTALL_DIR) -I$(BIOS_PACKAGES_DIR)/ti/sysbios/posix -D_POSIX_SOURCE -D PART_TM4C123GH6PM -D gcc -D TIVAWARE -mcpu=cortex-m4 -march=armv7e-m -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -ffunction-sections -fdata-sections -g -gstrict-dwarf -Wall
+
+LFLAGS = -Wl,-T,EK_TM4C123GXL.lds -Wl,-Map,$(NAME).map -Wl,-T,$(NAME)/linker.cmd -L$(TIVAWARE_INSTALL_DIR)/grlib/gcc -L$(TIVAWARE_INSTALL_DIR)/usblib/gcc -L$(TIVAWARE_INSTALL_DIR)/driverlib/gcc -lgr -lusb -ldriver -march=armv7e-m -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -nostartfiles -static -Wl,--gc-sections -L$(BIOS_PACKAGES_DIR)/gnu/targets/arm/libs/install-native/arm-none-eabi/lib/armv7e-m/fpu -lgcc -lc -lm -lrdimon
+
+###################### SHOULD NOT MODIFY BELOW THIS LINE ############################
+export XDCPATH
+
+XDCTARGET = gnu.targets.arm.M4F
+PLATFORM = ti.platforms.tiva:TM4C123GH6PM
+
+ifeq ("$(SHELL)","sh.exe")
+#For Windows
+        RMDIR  = -rmdir /S /Q
+        remove = -del $(subst /,\,$1)
+        pwd    = cd
+else
+#For Linux
+        RMDIR  = rm -rf
+        remove = rm -f $(subst /,\,$1)
+        pwd    = pwd
+endif
 
 ###### recursive wildcard function #######
 rwildcard=$(wildcard $1$2) $(foreach d, $(wildcard $1*),$(call rwildcard,$d/,$2))
