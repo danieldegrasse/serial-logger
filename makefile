@@ -1,5 +1,5 @@
 ###### CHANGE LOCATION TO YOUR CODEGEN TOOLS INSTALL DIR. UNIX PATH (no backslashes) #######
-CODEGEN_INSTALL_DIR = /usr
+CODEGEN_INSTALL_DIR = /home/danieldegrasse/Downloads/gcc-arm-none-eabi-4_7-2012q4
 
 CC = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gcc"
 LNK = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gcc"

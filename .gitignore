@@ -2,3 +2,4 @@
 *.obj
 *.map
 sd_logger
+.vscode

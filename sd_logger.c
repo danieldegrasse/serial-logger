@@ -18,10 +18,7 @@
 /* Board Header file */
 #include "Board.h"
 
-#define TASKSTACKSIZE   512
-
-Task_Struct task0Struct;
-Char task0Stack[TASKSTACKSIZE];
+#include "uart_console.h"
 
 /*
  *  ======== heartBeatFxn ========
@@ -41,7 +38,6 @@ Void heartBeatFxn(UArg arg0, UArg arg1)
  */
 int main(void)
 {
-    Task_Params taskParams;
 
     /* Call board init functions */
     Board_initGeneral();
@@ -53,14 +49,7 @@ int main(void)
     // Board_initUSB(Board_USBDEVICE);
     // Board_initWatchdog();
     // Board_initWiFi();
-
-    /* Construct heartBeat Task  thread */
-    Task_Params_init(&taskParams);
-    taskParams.arg0 = 1000;
-    taskParams.stackSize = TASKSTACKSIZE;
-    taskParams.stack = &task0Stack;
-    Task_construct(&task0Struct, (Task_FuncPtr)heartBeatFxn, &taskParams, NULL);
-
+    uart_prebios();
     /* Turn on user LED */
     GPIO_write(Board_LED0, Board_LED_ON);
 
