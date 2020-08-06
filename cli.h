@@ -8,7 +8,15 @@
 #define CLI_H
 
 /** CLI configuration parameters */
-#define CLI_MAX_LINE 80
+#define CLI_MAX_LINE 80 // max command length
+#define CLI_HISTORY 3 // max number of past commands to store
+
+typedef struct {
+    /*! buffer to store the commandline data */
+    char line_buf[CLI_MAX_LINE];
+    /*! length of line */
+    int len;
+} CLI_Line;
 
 typedef struct {
     /*! read bytes into the buffer. Returns the number of bytes read. */
@@ -17,18 +25,17 @@ typedef struct {
     int (*cli_write)(char *, int);
     /*! current pointer location */
     char *cursor;
-    /*! line buffer */
-    char line_buffer[CLI_MAX_LINE];
+    /*! line buffers */
+    CLI_Line lines[CLI_HISTORY + 1];
+    /*! Index of current line buffer */
+    int current_line;
 } CLIContext;
 
 /**
  * Initializes memory for a CLI context.
  * @param context: CLI context to init.
- * @param read_fxn: read function.
- * @param write_fxn: write function.
  */
-void cli_context_init(CLIContext *context, int (*read_fxn)(char *, int),
-                      int (*write_fxn)(char *, int));
+void cli_context_init(CLIContext *context);
 
 /**
  * Runs the embedded CLI for this program. The provided context exposes read

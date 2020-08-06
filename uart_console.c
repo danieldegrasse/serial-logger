@@ -69,7 +69,9 @@ void uart_prebios(void)
 void uart_task_entry(UArg arg0, UArg arg1)
 {
     CLIContext uart_context;
-    cli_context_init(&uart_context, uart_read, uart_write);
+    cli_context_init(&uart_context);
+    uart_context.cli_read = uart_read;
+    uart_context.cli_write = uart_write;
     start_cli(&uart_context); // Does not return.
 }
 
