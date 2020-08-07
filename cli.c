@@ -3,7 +3,7 @@
  * Implements console command handling for the SD logger program.
  * Interface-specific handling should be done in another file, this file
  * abstracts it.
- * 
+ *
  * This code assumes that the connected terminal emulates a VT-100.
  */
 
@@ -21,7 +21,7 @@ void cli_context_init(CLIContext *context) {
     int i;
     context->cursor = NULL;
     context->current_line = 0;
-    for (i = 0; i < CLI_MAX_LINE + 1; i++) {
+    for (i = 0; i < CLI_BUFCNT; i++) {
         // Set the line length
         context->lines[i].len = CLI_EMPTY_LINELEN;
     }
@@ -55,7 +55,7 @@ void start_cli(CLIContext *context) {
          * we actually use.
          */
         new_idx = context->current_line + 1;
-        if (new_idx == CLI_HISTORY + 1)
+        if (new_idx == CLI_BUFCNT)
             new_idx = 0;
         context->lines[new_idx].len = CLI_EMPTY_LINELEN;
         // Read data until a LF is found.
@@ -77,7 +77,7 @@ void start_cli(CLIContext *context) {
                 }
                 // simulate modulo here.
                 new_idx = context->current_line + 1;
-                if (new_idx == CLI_HISTORY + 1)
+                if (new_idx == CLI_BUFCNT)
                     new_idx = 0;
                 context->current_line = new_idx;
                 // TODO: handle command.
@@ -128,7 +128,30 @@ void start_cli(CLIContext *context) {
                     // Simulate modulo here, rather than using directly.
                     new_idx = context->current_line - 1;
                     if (new_idx < 0)
-                        new_idx = new_idx + (CLI_HISTORY + 1);
+                        new_idx = new_idx + CLI_BUFCNT;
+                    if (context->lines[new_idx].len != CLI_EMPTY_LINELEN) {
+                        // Update the line buffer, cursor, and current line.
+                        current_line = &(context->lines[new_idx]);
+                        context->current_line = new_idx;
+                        context->cursor = line_buf = current_line->line_buf;
+                        // Clear line of console and write line from history.
+                        // Clear line, and reset cursor.
+                        context->cli_write("\x1b[2K\r", 5);
+                        // Write prompt
+                        context->cli_write(prompt, sizeof(prompt) - 1);
+                        context->cli_write(line_buf, current_line->len);
+                        break;
+                    }
+                    break;
+                case 'B': // Down arrow
+                    /**
+                     * If enough history exists, move the CLI commandline
+                     * to the next command.
+                     */
+                    // Simulate modulo here, rather than using directly.
+                    new_idx = context->current_line + 1;
+                    if (new_idx == CLI_BUFCNT)
+                        new_idx = 0;
                     if (context->lines[new_idx].len != CLI_EMPTY_LINELEN) {
                         // Update the line buffer, cursor, and current line.
                         current_line = &(context->lines[new_idx]);

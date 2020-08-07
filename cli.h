@@ -11,6 +11,8 @@
 #define CLI_MAX_LINE 80 // max command length
 #define CLI_HISTORY 3 // max number of past commands to store
 
+#define CLI_BUFCNT CLI_HISTORY + 2 // Used internally for CLI buffer length
+
 typedef struct {
     /*! buffer to store the commandline data */
     char line_buf[CLI_MAX_LINE];
@@ -26,7 +28,7 @@ typedef struct {
     /*! current pointer location */
     char *cursor;
     /*! line buffers */
-    CLI_Line lines[CLI_HISTORY + 1];
+    CLI_Line lines[CLI_BUFCNT];
     /*! Index of current line buffer */
     int current_line;
 } CLIContext;
