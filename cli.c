@@ -3,6 +3,8 @@
  * Implements console command handling for the SD logger program.
  * Interface-specific handling should be done in another file, this file
  * abstracts it.
+ * 
+ * This code assumes that the connected terminal emulates a VT-100.
  */
 
 #include <string.h>
@@ -32,7 +34,7 @@ void cli_context_init(CLIContext *context) {
  */
 void start_cli(CLIContext *context) {
     char input, esc_buf[2], *line_buf;
-    int new_idx, i;
+    int new_idx;
     CLI_Line *current_line;
     char prompt[] = "-> ";
     /*
@@ -41,7 +43,7 @@ void start_cli(CLIContext *context) {
      */
     while (1) {
         // Print prompt.
-        context->cli_write(prompt, sizeof(prompt));
+        context->cli_write(prompt, sizeof(prompt) - 1);
         current_line = &(context->lines[context->current_line]);
         // Initialize cursor location to start of buffer.
         context->cursor = line_buf = current_line->line_buf;
@@ -64,7 +66,15 @@ void start_cli(CLIContext *context) {
                 context->cli_write("\r\n", 2);
                 // Null terminate the command.
                 line_buf[current_line->len] = '\0';
-                // Advance to the next index in the line buffer.
+                /**
+                 * If line is empty, do not advance to next line buffer or
+                 * handle command.
+                 * Else, advance to the next index in the line buffer.
+                 */
+                if (current_line->len == 0) {
+                    current_line->len = CLI_EMPTY_LINELEN;
+                    break;
+                }
                 // simulate modulo here.
                 new_idx = context->current_line + 1;
                 if (new_idx == CLI_HISTORY + 1)
@@ -96,9 +106,13 @@ void start_cli(CLIContext *context) {
                  * Escape sequence. Read more characters from the
                  * input to see if we can handle it.
                  */
-                context->cli_read(esc_buf, 2);
+                context->cli_read(esc_buf, sizeof(esc_buf));
                 if (esc_buf[0] != '[') {
-                    // Not an escape sequence we understand, ignore it.
+                    /**
+                     * Not an escape sequence we understand. Print the buffer
+                     * contents to the terminal and bail.
+                     */
+                    context->cli_write(esc_buf, sizeof(esc_buf));
                     break;
                 }
                 /*
@@ -121,22 +135,20 @@ void start_cli(CLIContext *context) {
                         context->current_line = new_idx;
                         context->cursor = line_buf = current_line->line_buf;
                         // Clear line of console and write line from history.
-                        context->cli_write("\r", 1); // resets cursor.
-                        for (i = 0; i < CLI_MAX_LINE + sizeof(prompt); i++) {
-                            context->cli_write(" ", 1);
-                        }
-                        context->cli_write("\r", 1); // resets cursor.
+                        // Clear line, and reset cursor.
+                        context->cli_write("\x1b[2K\r", 5);
                         // Write prompt
-                        context->cli_write(prompt, 3);
+                        context->cli_write(prompt, sizeof(prompt) - 1);
                         context->cli_write(line_buf, current_line->len);
                         break;
                     }
+                    break;
                 case 'C': // Right arrow
                     if (context->cursor - line_buf != current_line->len) {
                         // Move cursor and print the forward control seq.
                         (context->cursor)++;
                         context->cli_write(&input, 1);
-                        context->cli_write(esc_buf, 2);
+                        context->cli_write(esc_buf, sizeof(esc_buf));
                     }
                     break;
                 case 'D': // Left arrow
@@ -144,7 +156,7 @@ void start_cli(CLIContext *context) {
                         // Move cursor and print the backward control seq.
                         (context->cursor)--;
                         context->cli_write(&input, 1);
-                        context->cli_write(esc_buf, 2);
+                        context->cli_write(esc_buf, sizeof(esc_buf));
                     }
                 default:
                     // Ignore other escape sequences.
