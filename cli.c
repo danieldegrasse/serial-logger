@@ -7,11 +7,20 @@
  * This code assumes that the connected terminal emulates a VT-100.
  */
 
+#include <stdbool.h>
 #include <string.h>
 
 #include "cli.h"
 
 #define CLI_EMPTY_LINELEN -1 // Signifies an "unused" history buffer.
+#define CLI_PROMPT "-> "
+
+// Static functions to handle sub cases for the CLI.
+static void cli_handle_return(CLIContext *context);
+static void cli_handle_esc(CLIContext *context);
+static void cli_handle_backspace(CLIContext *context);
+// Helper functions
+static void move_line_index(CLIContext *context, bool forwards);
 
 /**
  * Initializes memory for a CLI context.
@@ -33,20 +42,18 @@ void cli_context_init(CLIContext *context) {
  * @param context: CLI context for I/O.
  */
 void start_cli(CLIContext *context) {
-    char input, esc_buf[2], *line_buf;
-    int new_idx;
     CLI_Line *current_line;
-    char prompt[] = "-> ";
+    char input;
     /*
      * CLI loop, reads a line of data then handles it according to
      * avaliable targets.
      */
     while (1) {
         // Print prompt.
-        context->cli_write(prompt, sizeof(prompt) - 1);
+        context->cli_write(CLI_PROMPT, sizeof(CLI_PROMPT) - 1);
         current_line = &(context->lines[context->current_line]);
         // Initialize cursor location to start of buffer.
-        context->cursor = line_buf = current_line->line_buf;
+        context->cursor = current_line->line_buf;
         // Zero length of buffer.
         current_line->len = 0;
         /*
@@ -54,139 +61,27 @@ void start_cli(CLIContext *context) {
          * This is why we need one more entry in history buffer than
          * we actually use.
          */
-        new_idx = context->current_line + 1;
-        if (new_idx == CLI_BUFCNT)
-            new_idx = 0;
-        context->lines[new_idx].len = CLI_EMPTY_LINELEN;
+        move_line_index(context, true);
+        context->lines[context->current_line].len = CLI_EMPTY_LINELEN;
+        // Revert change to current line idx.
+        move_line_index(context, false);
         // Read data until a LF is found.
         do {
             context->cli_read(&input, 1);
             switch (input) {
             case '\r': // CR, or enter on most consoles.
-                context->cli_write("\r\n", 2);
-                // Null terminate the command.
-                line_buf[current_line->len] = '\0';
-                /**
-                 * If line is empty, do not advance to next line buffer or
-                 * handle command.
-                 * Else, advance to the next index in the line buffer.
-                 */
-                if (current_line->len == 0) {
-                    current_line->len = CLI_EMPTY_LINELEN;
-                    break;
-                }
-                // simulate modulo here.
-                new_idx = context->current_line + 1;
-                if (new_idx == CLI_BUFCNT)
-                    new_idx = 0;
-                context->current_line = new_idx;
-                // TODO: handle command.
-                context->cli_write("Got Data:", 9);
-                context->cli_write(current_line->line_buf, strlen(line_buf));
-                context->cli_write("\r\n", 2);
+                cli_handle_return(context);
                 break;
             case '\b':
-                /**
-                 * Backspace: send backspace and space to clear
-                 * character. Edit the value in the command buffer as well.
-                 */
-                // Ensure that the cursor is at the end of the line.
-                if (context->cursor - line_buf == current_line->len &&
-                    context->cursor != line_buf) {
-                    context->cli_write("\b\x20\b", 3);
-                    // Move cursor back, and clear the character there.
-                    context->cursor--;
-                    *(context->cursor) = '\0';
-                    // Lower the line length.
-                    current_line->len--;
-                }
+                cli_handle_backspace(context);
                 break;
             case '\x1b':
-                /**
-                 * Escape sequence. Read more characters from the
-                 * input to see if we can handle it.
-                 */
-                context->cli_read(esc_buf, sizeof(esc_buf));
-                if (esc_buf[0] != '[') {
-                    /**
-                     * Not an escape sequence we understand. Print the buffer
-                     * contents to the terminal and bail.
-                     */
-                    context->cli_write(esc_buf, sizeof(esc_buf));
-                    break;
-                }
-                /*
-                 * If the escape sequence starts with '\x33]',
-                 * switch on next char.
-                 */
-                switch (esc_buf[1]) {
-                case 'A': // Up arrow
-                    /**
-                     * If enough history exists, move the CLI commandline
-                     * to the prior command.
-                     */
-                    // Simulate modulo here, rather than using directly.
-                    new_idx = context->current_line - 1;
-                    if (new_idx < 0)
-                        new_idx = new_idx + CLI_BUFCNT;
-                    if (context->lines[new_idx].len != CLI_EMPTY_LINELEN) {
-                        // Update the line buffer, cursor, and current line.
-                        current_line = &(context->lines[new_idx]);
-                        context->current_line = new_idx;
-                        context->cursor = line_buf = current_line->line_buf;
-                        // Clear line of console and write line from history.
-                        // Clear line, and reset cursor.
-                        context->cli_write("\x1b[2K\r", 5);
-                        // Write prompt
-                        context->cli_write(prompt, sizeof(prompt) - 1);
-                        context->cli_write(line_buf, current_line->len);
-                        break;
-                    }
-                    break;
-                case 'B': // Down arrow
-                    /**
-                     * If enough history exists, move the CLI commandline
-                     * to the next command.
-                     */
-                    // Simulate modulo here, rather than using directly.
-                    new_idx = context->current_line + 1;
-                    if (new_idx == CLI_BUFCNT)
-                        new_idx = 0;
-                    if (context->lines[new_idx].len != CLI_EMPTY_LINELEN) {
-                        // Update the line buffer, cursor, and current line.
-                        current_line = &(context->lines[new_idx]);
-                        context->current_line = new_idx;
-                        context->cursor = line_buf = current_line->line_buf;
-                        // Clear line of console and write line from history.
-                        // Clear line, and reset cursor.
-                        context->cli_write("\x1b[2K\r", 5);
-                        // Write prompt
-                        context->cli_write(prompt, sizeof(prompt) - 1);
-                        context->cli_write(line_buf, current_line->len);
-                        break;
-                    }
-                    break;
-                case 'C': // Right arrow
-                    if (context->cursor - line_buf != current_line->len) {
-                        // Move cursor and print the forward control seq.
-                        (context->cursor)++;
-                        context->cli_write(&input, 1);
-                        context->cli_write(esc_buf, sizeof(esc_buf));
-                    }
-                    break;
-                case 'D': // Left arrow
-                    if (context->cursor != line_buf) {
-                        // Move cursor and print the backward control seq.
-                        (context->cursor)--;
-                        context->cli_write(&input, 1);
-                        context->cli_write(esc_buf, sizeof(esc_buf));
-                    }
-                default:
-                    // Ignore other escape sequences.
-                    break;
-                }
+                cli_handle_esc(context);
                 break;
             default:
+                if (current_line->len >= CLI_MAX_LINE - 1) {
+                    break; // Do not echo any more data, nor write to buffer.
+                }
                 // Simply echo character, and set in buffer
                 context->cli_write(&input, 1);
                 *(context->cursor) = input;
@@ -196,11 +91,189 @@ void start_cli(CLIContext *context) {
                  * If we have added to the end of the buffer, increase
                  * line length
                  */
-                if (context->cursor - line_buf > current_line->len) {
-                    current_line->len = context->cursor - line_buf;
+                if (context->cursor - current_line->line_buf >
+                    current_line->len) {
+                    current_line->len =
+                        context->cursor - current_line->line_buf;
                 }
                 break;
             }
-        } while (input != '\r' && current_line->len < CLI_MAX_LINE);
+        } while (input != '\r');
+    }
+}
+
+/**
+ * Handles a return character ('\r') on the CLI.
+ * Will submit the null terminated command string to a CLI handler function.
+ * Following return of handler, will advance CLI history buffer to next entry
+ * and return.
+ * @param context: CLI context to use for this command.
+ */
+static void cli_handle_return(CLIContext *context) {
+    CLI_Line *current_line = &context->lines[context->current_line];
+    // Write a newline and carriage return to the console.
+    context->cli_write("\r\n", 2);
+    // Null terminate the command.
+    current_line->line_buf[current_line->len] = '\0';
+    /**
+     * If line is empty, do not advance to next line buffer or
+     * handle command.
+     * Else, advance to the next index in the line buffer.
+     */
+    if (current_line->len == 0) {
+        current_line->len = CLI_EMPTY_LINELEN;
+        return;
+    }
+    move_line_index(context, true);
+    // TODO: handle command.
+    context->cli_write("Got Data:", 9);
+    context->cli_write(current_line->line_buf, current_line->len);
+    context->cli_write("\r\n", 2);
+}
+
+/**
+ * Handles a backspace ('\b') character on the commandline.
+ * If the cursor is at the end of the current statement and there are
+ * characters to remove, deletes a character from the screen and buffer, and
+ * moves the buffer pointer as well as cursor backwards.
+ * @param context: CLI context to use
+ */
+static void cli_handle_backspace(CLIContext *context) {
+    CLI_Line *current_line = &context->lines[context->current_line];
+    /*
+     * Backspace: send backspace and space to clear
+     * character. Edit the value in the command buffer as well.
+     */
+    /*
+     * Ensure that the cursor is at the end of the line,
+     * and there is data to delete.
+     */
+    if (context->cursor - current_line->line_buf == current_line->len &&
+        context->cursor != current_line->line_buf) {
+        // This moves the cursor back, writes a space, and moves it again
+        // Effectively, this clears the character before the cursor.
+        context->cli_write("\b\x20\b", 3);
+        // Move cursor back, and nullify the character there.
+        context->cursor--;
+        *(context->cursor) = '\0';
+        // Lower the line length.
+        current_line->len--;
+    }
+}
+
+/**
+ * Handles an escape character (typically will resolve to a control code) on
+ * the commandline.
+ * @param context: Context escape character recieved on.
+ */
+static void cli_handle_esc(CLIContext *context) {
+    CLI_Line *current_line = &context->lines[context->current_line];
+    char esc_buf[2];
+    /**
+     * Escape sequence. Read more characters from the
+     * input to see if we can handle it.
+     */
+    context->cli_read(esc_buf, sizeof(esc_buf));
+    if (esc_buf[0] != '[') {
+        /**
+         * Not an escape sequence we understand. Print the buffer
+         * contents to the terminal and bail.
+         */
+        context->cli_write(esc_buf, sizeof(esc_buf));
+        return;
+    }
+    /*
+     * If the escape sequence starts with '\x1b]',
+     * switch on next char.
+     */
+    switch (esc_buf[1]) {
+    case 'A': // Up arrow
+        /**
+         * If enough history exists, move the CLI commandline
+         * to the prior command.
+         */
+        move_line_index(context, false);
+        if (context->lines[context->current_line].len != CLI_EMPTY_LINELEN) {
+            // Update the line buffer and current line.
+            current_line = &(context->lines[context->current_line]);
+            // Set cursor to end of line buffer.
+            context->cursor = &current_line->line_buf[current_line->len];
+            // Clear line of console and write line from history.
+            // Clear line, and reset cursor.
+            context->cli_write("\x1b[2K\r", 5);
+            // Write prompt
+            context->cli_write(CLI_PROMPT, sizeof(CLI_PROMPT) - 1);
+            context->cli_write(current_line->line_buf, current_line->len);
+        } else {
+            // Reset current line idx.
+            move_line_index(context, true);
+        }
+        break;
+    case 'B': // Down arrow
+        /**
+         * If enough history exists, move the CLI commandline
+         * to the next command.
+         */
+        move_line_index(context, true);
+        if (context->lines[context->current_line].len != CLI_EMPTY_LINELEN) {
+            // Update the line buffer, cursor, and current line.
+            current_line = &(context->lines[context->current_line]);
+            // Set cursor to end of line buffer.
+            context->cursor = &current_line->line_buf[current_line->len];
+            // Clear line of console and write line from history.
+            // Clear line, and reset cursor.
+            context->cli_write("\x1b[2K\r", 5);
+            // Write prompt
+            context->cli_write(CLI_PROMPT, sizeof(CLI_PROMPT) - 1);
+            context->cli_write(current_line->line_buf, current_line->len);
+        } else {
+            // Reset current line idx.
+            move_line_index(context, false);
+        }
+        break;
+    case 'C': // Right arrow
+        if (context->cursor - current_line->line_buf != current_line->len) {
+            // Move cursor and print the forward control seq.
+            (context->cursor)++;
+            context->cli_write("\x1b", 1);
+            context->cli_write(esc_buf, sizeof(esc_buf));
+        }
+        break;
+    case 'D': // Left arrow
+        if (context->cursor != current_line->line_buf) {
+            // Move cursor and print the backward control seq.
+            (context->cursor)--;
+            context->cli_write("\x1b", 1);
+            context->cli_write(esc_buf, sizeof(esc_buf));
+        }
+        break;
+    default:
+        // Ignore other escape sequences.
+        break;
+    }
+}
+
+/**
+ * Moves the index of the CLI line history buffer.
+ * Sets the index only. Does not edit remainder of context.
+ * @param context: CLI context to manipulate
+ * @param forwards: should the index be moved one buffer forwards or back?
+ */
+static void move_line_index(CLIContext *context, bool forwards) {
+    int new_idx;
+    /*
+     * This function simulates modulo, since we are aware exactly how far
+     * forwards or back we are moving the index, and our modulo is constant.
+     */
+    if (forwards) {
+        new_idx = context->current_line + 1;
+        if (new_idx == CLI_BUFCNT)
+            new_idx = 0;
+        context->current_line = new_idx;
+    } else {
+        new_idx = context->current_line - 1;
+        if (new_idx < 0)
+            new_idx = CLI_BUFCNT - 1;
+        context->current_line = new_idx;
     }
 }
