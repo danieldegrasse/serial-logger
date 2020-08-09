@@ -1,15 +1,20 @@
 /**
  * @file cli.h
- * Implements console command handling for the SD logger program.
- * Interface-specific handling should be done in another file, this file
- * abstracts it.
+ * Implements a generic console that can read command strings. Command
+ * strings are not handled in this file.
+ * Interface-specific (UART, SPI, etc...) handling should be done in
+ * another file, this file abstracts it.
+ *
+ * This code assumes that the connected terminal emulates a VT-100.
  */
+
 #ifndef CLI_H
 #define CLI_H
 
 /** CLI configuration parameters */
 #define CLI_MAX_LINE 80 // max command length
-#define CLI_HISTORY 3 // max number of past commands to store
+#define CLI_HISTORY 3   // max number of past commands to store
+#define PRINT_BUFLEN 80 // size of printf buffer to use.
 
 #define CLI_BUFCNT CLI_HISTORY + 2 // Used internally for CLI buffer length
 
@@ -30,8 +35,15 @@ typedef struct {
     /*! line buffers */
     CLI_Line lines[CLI_BUFCNT];
     /*! Index of current line buffer */
-    int current_line;
+    int line_idx;
 } CLIContext;
+
+/**
+ * CLI Printf function. Same syntax as printf.
+ * @param context CLI context to print to
+ * @param format printf style format string
+ */
+void cli_printf(CLIContext *context, const char *format, ...);
 
 /**
  * Initializes memory for a CLI context.

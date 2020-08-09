@@ -1,21 +1,25 @@
 /**
  * @file cli.c
- * Implements console command handling for the SD logger program.
- * Interface-specific handling should be done in another file, this file
- * abstracts it.
+ * Implements a generic console that can read command strings. Command
+ * strings are not handled in this file.
+ * Interface-specific (UART, SPI, etc...) handling should be done in
+ * another file, this file abstracts it.
  *
  * This code assumes that the connected terminal emulates a VT-100.
  */
 
 #include <stdbool.h>
 #include <string.h>
+#include <stdio.h>
+#include <stdarg.h>
 
 #include "cli.h"
+#include "commands.h"
 
 #define CLI_EMPTY_LINELEN -1 // Signifies an "unused" history buffer.
 #define CLI_PROMPT "-> "
 
-// Static functions to handle sub cases for the CLI.
+// functions to handle sub cases for the CLI.
 static void cli_handle_return(CLIContext *context);
 static void cli_handle_esc(CLIContext *context);
 static void cli_handle_backspace(CLIContext *context);
@@ -29,11 +33,28 @@ static void move_line_index(CLIContext *context, bool forwards);
 void cli_context_init(CLIContext *context) {
     int i;
     context->cursor = NULL;
-    context->current_line = 0;
+    context->line_idx = 0;
     for (i = 0; i < CLI_BUFCNT; i++) {
         // Set the line length
         context->lines[i].len = CLI_EMPTY_LINELEN;
     }
+}
+
+/**
+ * CLI Printf function. Same syntax as printf.
+ * @param context CLI context to print to
+ * @param format printf style format string
+ */
+void cli_printf(CLIContext *context, const char *format, ...) {
+    va_list args;
+    int num_print;
+    char output_buf[PRINT_BUFLEN];
+    // Init variable args list.
+    va_start(args, format);
+    // Print to buffer and destroy varargs list.
+    num_print = vsnprintf(output_buf, PRINT_BUFLEN, format, args);
+    va_end(args);
+    context->cli_write(output_buf, num_print);
 }
 
 /**
@@ -51,7 +72,7 @@ void start_cli(CLIContext *context) {
     while (1) {
         // Print prompt.
         context->cli_write(CLI_PROMPT, sizeof(CLI_PROMPT) - 1);
-        current_line = &(context->lines[context->current_line]);
+        current_line = &(context->lines[context->line_idx]);
         // Initialize cursor location to start of buffer.
         context->cursor = current_line->line_buf;
         // Zero length of buffer.
@@ -62,7 +83,7 @@ void start_cli(CLIContext *context) {
          * we actually use.
          */
         move_line_index(context, true);
-        context->lines[context->current_line].len = CLI_EMPTY_LINELEN;
+        context->lines[context->line_idx].len = CLI_EMPTY_LINELEN;
         // Revert change to current line idx.
         move_line_index(context, false);
         // Read data until a LF is found.
@@ -110,7 +131,7 @@ void start_cli(CLIContext *context) {
  * @param context: CLI context to use for this command.
  */
 static void cli_handle_return(CLIContext *context) {
-    CLI_Line *current_line = &context->lines[context->current_line];
+    CLI_Line *current_line = &context->lines[context->line_idx];
     // Write a newline and carriage return to the console.
     context->cli_write("\r\n", 2);
     // Null terminate the command.
@@ -125,10 +146,8 @@ static void cli_handle_return(CLIContext *context) {
         return;
     }
     move_line_index(context, true);
-    // TODO: handle command.
-    context->cli_write("Got Data:", 9);
-    context->cli_write(current_line->line_buf, current_line->len);
-    context->cli_write("\r\n", 2);
+    // handle command.
+    handle_command(context, current_line->line_buf);
 }
 
 /**
@@ -139,7 +158,7 @@ static void cli_handle_return(CLIContext *context) {
  * @param context: CLI context to use
  */
 static void cli_handle_backspace(CLIContext *context) {
-    CLI_Line *current_line = &context->lines[context->current_line];
+    CLI_Line *current_line = &context->lines[context->line_idx];
     /*
      * Backspace: send backspace and space to clear
      * character. Edit the value in the command buffer as well.
@@ -167,7 +186,7 @@ static void cli_handle_backspace(CLIContext *context) {
  * @param context: Context escape character recieved on.
  */
 static void cli_handle_esc(CLIContext *context) {
-    CLI_Line *current_line = &context->lines[context->current_line];
+    CLI_Line *current_line = &context->lines[context->line_idx];
     char esc_buf[2];
     /**
      * Escape sequence. Read more characters from the
@@ -193,9 +212,9 @@ static void cli_handle_esc(CLIContext *context) {
          * to the prior command.
          */
         move_line_index(context, false);
-        if (context->lines[context->current_line].len != CLI_EMPTY_LINELEN) {
+        if (context->lines[context->line_idx].len != CLI_EMPTY_LINELEN) {
             // Update the line buffer and current line.
-            current_line = &(context->lines[context->current_line]);
+            current_line = &(context->lines[context->line_idx]);
             // Set cursor to end of line buffer.
             context->cursor = &current_line->line_buf[current_line->len];
             // Clear line of console and write line from history.
@@ -215,9 +234,9 @@ static void cli_handle_esc(CLIContext *context) {
          * to the next command.
          */
         move_line_index(context, true);
-        if (context->lines[context->current_line].len != CLI_EMPTY_LINELEN) {
+        if (context->lines[context->line_idx].len != CLI_EMPTY_LINELEN) {
             // Update the line buffer, cursor, and current line.
-            current_line = &(context->lines[context->current_line]);
+            current_line = &(context->lines[context->line_idx]);
             // Set cursor to end of line buffer.
             context->cursor = &current_line->line_buf[current_line->len];
             // Clear line of console and write line from history.
@@ -266,14 +285,14 @@ static void move_line_index(CLIContext *context, bool forwards) {
      * forwards or back we are moving the index, and our modulo is constant.
      */
     if (forwards) {
-        new_idx = context->current_line + 1;
+        new_idx = context->line_idx + 1;
         if (new_idx == CLI_BUFCNT)
             new_idx = 0;
-        context->current_line = new_idx;
+        context->line_idx = new_idx;
     } else {
-        new_idx = context->current_line - 1;
+        new_idx = context->line_idx - 1;
         if (new_idx < 0)
             new_idx = CLI_BUFCNT - 1;
-        context->current_line = new_idx;
+        context->line_idx = new_idx;
     }
 }
