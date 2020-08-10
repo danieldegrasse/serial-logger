@@ -50,10 +50,11 @@ const CmdEntry COMMANDS[] = {
 int handle_command(CLIContext *ctx, char *cmd) {
     const CmdEntry *entry;
     int argc;
-    char *arguments[MAX_ARGC], *saveptr;
+    char *arguments[MAX_ARGC], *saveptr, cmd_buf[CLI_MAX_LINE];
+    strncpy(cmd_buf, cmd, CLI_MAX_LINE);
     // The parser interprets a space as a delimeter between arguments.
     // Init strtok_r.
-    arguments[0] = strtok_r(cmd, DELIMETER, &saveptr);
+    arguments[0] = strtok_r(cmd_buf, DELIMETER, &saveptr);
     // Parse the rest of the arguments.
     for (argc = 1; argc < MAX_ARGC; argc++) {
         arguments[argc] = strtok_r(NULL, DELIMETER, &saveptr);
@@ -97,6 +98,7 @@ static int help(CLIContext *ctx, char **argv, int argc) {
                 cli_printf(ctx, "%s: %s\r\n", entry->cmd_name, entry->cmd_help);
                 return 0;
             }
+            entry++;
         }
         // If we make it here, the command name was unknown.
         cli_printf(ctx, "Unknown command: %s\r\n", argv[1]);

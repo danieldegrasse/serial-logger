@@ -8,15 +8,14 @@
  * This code assumes that the connected terminal emulates a VT-100.
  */
 
-
 /* XDCtools Header files */
-#include <xdc/std.h>
 #include <xdc/runtime/System.h>
+#include <xdc/std.h>
 
-#include <stdbool.h>
-#include <string.h>
-#include <stdio.h>
 #include <stdarg.h>
+#include <stdbool.h>
+#include <stdio.h>
+#include <string.h>
 
 #include "cli.h"
 #include "commands.h"
@@ -58,12 +57,16 @@ void cli_printf(CLIContext *context, const char *format, ...) {
     va_start(args, format);
     // Print to buffer and destroy varargs list.
     /*
-     * Note: newlib's implementation of vnsprintf appears to require a heap, 
+     * Note: newlib's implementation of vnsprintf appears to require a heap,
      * which we do not have. Use the xdc version.
+     * TODO: ideally, we'd implement printf with a circular buffer, so we can
+     * print a string of any length.
      */
     num_print = System_vsnprintf(output_buf, PRINT_BUFLEN, format, args);
     va_end(args);
-    context->cli_write(output_buf, num_print);
+    // Write the shorter value between the buffer size and num_print
+    context->cli_write(output_buf,
+                       num_print > PRINT_BUFLEN ? PRINT_BUFLEN : num_print);
 }
 
 /**
