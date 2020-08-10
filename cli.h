@@ -14,7 +14,7 @@
 /** CLI configuration parameters */
 #define CLI_MAX_LINE 80 // max command length
 #define CLI_HISTORY 3   // max number of past commands to store
-#define PRINT_BUFLEN 80 // size of printf buffer to use.
+#define PRINT_BUFLEN 256 // size of printf buffer to use.
 
 #define CLI_BUFCNT CLI_HISTORY + 2 // Used internally for CLI buffer length
 

@@ -6,37 +6,40 @@
 
 typedef struct {
     char *cmd_name;
-    int (*cmd_fxn)(CLIContext *, char**, int);
+    int (*cmd_fxn)(CLIContext *, char **, int);
     char *cmd_help;
 } CmdEntry;
 
 #include <string.h>
 
 /*
- * Maximum number of arguments that the parser will handle. 
+ * Maximum number of arguments that the parser will handle.
  * Includes command name.
  */
-#define MAX_ARGV 8 
-
+#define MAX_ARGC 8
+/*
+ * Delimiter used for parsing arguments.
+ * Add any other delimeters to this string.
+ */
+#define DELIMETER " "
 
 static int help(CLIContext *cxt, char **argv, int argc);
 
 /**
  * Declaration of commands. Syntax is as follows:
  * {"NAME_OF_COMMAND", command_function, "HELP_STRING"}
- * The command function follows the signature of "main", but with a 
+ * The command function follows the signature of "main", but with a
  * Context Parameter, ex:
  *   int command_function(CLIContext *ctx, char** argv, int argc)
  * A return value of zero indicates success, anything else indicates failure.
  */
 
 const CmdEntry COMMANDS[] = {
-    {"help", help, "Prints help for this commandline"},
+    {"help", help,
+     "Prints help for this commandline.\r\n"
+     "supply the name of a command after \"help\" for help with that command"},
     // Add more entries here.
-    {NULL, NULL, NULL}
-};
-
-
+    {NULL, NULL, NULL}};
 
 /**
  * Handles a command, as given by the null terminated string "cmd"
@@ -45,14 +48,32 @@ const CmdEntry COMMANDS[] = {
  * @return 0 on successful handling, or another value on failure.
  */
 int handle_command(CLIContext *ctx, char *cmd) {
-    char *arguments[MAX_ARGV];
+    const CmdEntry *entry;
+    int argc;
+    char *arguments[MAX_ARGC], *saveptr;
     // The parser interprets a space as a delimeter between arguments.
-    (void)arguments;
-    ctx->cli_write("This will work\r\n", 16);
-    cli_printf(ctx, "Hello there");
+    // Init strtok_r.
+    arguments[0] = strtok_r(cmd, DELIMETER, &saveptr);
+    // Parse the rest of the arguments.
+    for (argc = 1; argc < MAX_ARGC; argc++) {
+        arguments[argc] = strtok_r(NULL, DELIMETER, &saveptr);
+        if (arguments[argc] == NULL) {
+            // Out of args to parse, break.
+            break;
+        }
+    }
+    // Now, find the command to run.
+    entry = COMMANDS;
+    while (entry->cmd_name != NULL) {
+        if (strcmp(entry->cmd_name, arguments[0]) == 0) {
+            return entry->cmd_fxn(ctx, arguments, argc);
+        }
+        entry++;
+    }
+    // If we exit the loop, we don't recognize this command.
+    cli_printf(ctx, "Warning: unknown command. Try \"help\". \r\n");
     return 0;
 }
-
 
 /**
  * Help function. Prints avaliable commandline targets.
@@ -60,15 +81,28 @@ int handle_command(CLIContext *ctx, char *cmd) {
  * @param argc: length of the argv array.
  */
 static int help(CLIContext *ctx, char **argv, int argc) {
-    CmdEntry *entry;
+    const CmdEntry *entry = COMMANDS;
     if (argc == 1) {
-        cli_printf(ctx, "Test\n");
-        entry = (CmdEntry*)&COMMANDS[0];
+        cli_printf(ctx, "Avaliable Commands:\r\n");
         while (entry->cmd_name != NULL) {
             // Write command name and newline
-            cli_printf(ctx, "%s\n", entry->cmd_name);
+            cli_printf(ctx, "%s\r\n", entry->cmd_name);
             entry++;
         }
+        return 0;
+    } else if (argc == 2) {
+        while (entry->cmd_name != NULL) {
+            if (strcmp(entry->cmd_name, argv[1]) == 0) {
+                // Print help for this command.
+                cli_printf(ctx, "%s: %s\r\n", entry->cmd_name, entry->cmd_help);
+                return 0;
+            }
+        }
+        // If we make it here, the command name was unknown.
+        cli_printf(ctx, "Unknown command: %s\r\n", argv[1]);
+        return 255;
     }
-    return 0;
+    // If neither of the above conditions are triggered, print error.
+    cli_printf(ctx, "Unsupported number of arguments\r\n");
+    return 255;
 }
