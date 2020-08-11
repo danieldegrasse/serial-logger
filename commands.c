@@ -2,6 +2,9 @@
  * @file commands.c
  * Implements CLI command handlers.
  */
+
+#include <string.h>
+
 #include "cli.h"
 
 typedef struct {
@@ -9,8 +12,6 @@ typedef struct {
     int (*cmd_fxn)(CLIContext *, char **, int);
     char *cmd_help;
 } CmdEntry;
-
-#include <string.h>
 
 /*
  * Maximum number of arguments that the parser will handle.
@@ -23,7 +24,8 @@ typedef struct {
  */
 #define DELIMETER " "
 
-static int help(CLIContext *cxt, char **argv, int argc);
+static int help(CLIContext *ctx, char **argv, int argc);
+static int sdcard(CLIContext *ctx, char **argv, int argc);
 
 /**
  * Declaration of commands. Syntax is as follows:
@@ -38,6 +40,8 @@ const CmdEntry COMMANDS[] = {
     {"help", help,
      "Prints help for this commandline.\r\n"
      "supply the name of a command after \"help\" for help with that command"},
+    {"sdcard", sdcard,
+     "Manages the sdcard. Use \"sdcard mount\" to mount the sdcard"},
     // Add more entries here.
     {NULL, NULL, NULL}};
 
@@ -107,4 +111,27 @@ static int help(CLIContext *ctx, char **argv, int argc) {
     // If neither of the above conditions are triggered, print error.
     cli_printf(ctx, "Unsupported number of arguments\r\n");
     return 255;
+}
+
+/**
+ * SD card handler function. Allows the console to control the state of the
+ * SD card by mounting or unmounting it.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int sdcard(CLIContext *ctx, char **argv, int argc) {
+    if (argc != 2) {
+        cli_printf(ctx, "Unsupported number of arguments\r\n");
+        return 255;
+    }
+    if (strncmp(argv[1], "mount", 5) == 0) {
+        cli_printf(ctx, "Attempting to mount sdcard...");
+        cli_printf(ctx, "Success!\r\n");
+        return 0;
+    } else {
+        cli_printf(ctx, "Unknown command %s. Try \"help sdcard\"\r\n", argv[1]);
+        return 255;
+    }
 }

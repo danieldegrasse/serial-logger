@@ -37,7 +37,7 @@ static int uart_write(char* out, int n);
  * UART device on linux will be ttyACM0.
  * This code MUST be called before the BIOS is started.
  */
-void uart_prebios(void)
+void uart_task_prebios(void)
 {
     Board_initUART();
     System_printf("Setup UART Device\n");

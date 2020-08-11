@@ -19,6 +19,7 @@
 #include "Board.h"
 
 #include "uart_console_task.h"
+#include "sd_card.h"
 
 
 
@@ -38,7 +39,9 @@ int main(void)
     // Board_initUSB(Board_USBDEVICE);
     // Board_initWatchdog();
     // Board_initWiFi();
-    uart_prebios();
+    uart_task_prebios();
+    // Setup required pthread variables for the SD card.
+    sd_pthread_setup();
     /* Turn on user LED */
     GPIO_write(Board_LED0, Board_LED_ON);
 

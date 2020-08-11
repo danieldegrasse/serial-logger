@@ -15,7 +15,6 @@
 #include <stdarg.h>
 #include <stdbool.h>
 #include <stdio.h>
-#include <string.h>
 
 #include "cli.h"
 #include "commands.h"
@@ -109,6 +108,8 @@ void start_cli(CLIContext *context) {
                 break;
             case '\x1b':
                 cli_handle_esc(context);
+                // Required because some escape sequences update the line idx.
+                current_line = &(context->lines[context->line_idx]);
                 break;
             default:
                 if (current_line->len >= CLI_MAX_LINE - 1) {
