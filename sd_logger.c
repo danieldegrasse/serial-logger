@@ -1,6 +1,6 @@
 /* XDCtools Header files */
-#include <xdc/std.h>
 #include <xdc/runtime/System.h>
+#include <xdc/std.h>
 
 /* BIOS Header files */
 #include <ti/sysbios/BIOS.h>
@@ -18,40 +18,20 @@
 /* Board Header file */
 #include "Board.h"
 
-#include "uart_console_task.h"
 #include "sd_card.h"
-
-
+#include "uart_console_task.h"
 
 /*
  *  ======== main ========
  */
-int main(void)
-{
-
+int main(void) {
     /* Call board init functions */
     Board_initGeneral();
     Board_initGPIO();
-    // Board_initI2C();
-    // Board_initSDSPI();
-    // Board_initSPI();
-    // Board_initUART();
-    // Board_initUSB(Board_USBDEVICE);
-    // Board_initWatchdog();
-    // Board_initWiFi();
     uart_task_prebios();
     // Setup required pthread variables for the SD card.
-    sd_pthread_setup();
-    /* Turn on user LED */
-    GPIO_write(Board_LED0, Board_LED_ON);
-
-    System_printf("Starting the example\nSystem provider is set to SysMin. "
-                  "Halt the target to view any SysMin contents in ROV.\n");
-    /* SysMin will only print to the console when you call flush or exit */
-    System_flush();
-
+    sd_setup();
     /* Start BIOS */
     BIOS_start();
-
     return (0);
 }

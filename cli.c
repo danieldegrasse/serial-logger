@@ -159,8 +159,6 @@ static void cli_handle_return(CLIContext *context) {
     }
     move_line_index(context, true);
     // handle command.
-    System_printf("Console Read: %s\n", current_line->line_buf);
-    System_flush();
     handle_command(context, current_line->line_buf);
 }
 

@@ -6,6 +6,7 @@
 #include <string.h>
 
 #include "cli.h"
+#include "sd_card.h"
 
 typedef struct {
     char *cmd_name;
@@ -127,8 +128,12 @@ static int sdcard(CLIContext *ctx, char **argv, int argc) {
         return 255;
     }
     if (strncmp(argv[1], "mount", 5) == 0) {
-        cli_printf(ctx, "Attempting to mount sdcard...");
-        cli_printf(ctx, "Success!\r\n");
+        cli_printf(ctx, "Attempting to mount sdcard...\r\n");
+        if (attempt_sd_mount()) {
+            cli_printf(ctx, "Success\r\n");
+        } else {
+            cli_printf(ctx, "Failed.\r\n");
+        }
         return 0;
     } else {
         cli_printf(ctx, "Unknown command %s. Try \"help sdcard\"\r\n", argv[1]);

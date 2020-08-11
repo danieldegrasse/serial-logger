@@ -13,11 +13,25 @@
 
 #ifndef SD_CARD_H
 #define SD_CARD_H
+#include <stdbool.h>
 
 /**
  * Sets up required mutex and condition variables for SD card management.
+ * Also enables GPIO pins control required for SD card hotplug.
  * Should be called before BIOS starts.
  */
-void sd_pthread_setup(void);
+void sd_setup(void);
+
+/**
+ * Attempts to mount the SD card. If the mount succeeds, notifies any tasks
+ * waiting for the SD card to be mounted that it has been.
+ * @return true if mount succeeds, or false otherwise.
+ */
+bool attempt_sd_mount(void);
+
+/**
+ * Waits for the SD card to be mounted.
+ */
+void wait_sd_ready(void);
 
 #endif

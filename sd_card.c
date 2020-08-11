@@ -5,6 +5,7 @@
  *
  * ============== Required Pins ==================:
  * The SD card is driven via SPI. The following pins are used:
+ * VCC- PE3 (required for hotplugging SD card)
  * CLK- PB4
  * MISO- PB6
  * MOSI- PB7
@@ -41,27 +42,30 @@ pthread_mutex_t sd_card_access_mutex;
 static bool sd_online(const char *drive_num, FATFS **fs);
 
 /**
- * Sets up required mutex and condition variables for SD card management.
- * Should be called before BIOS starts.
+ * Runs required setup for the SD card. Should be called before BIOS starts.
  */
-void sd_pthread_setup(void) {
+void sd_setup(void) {
     pthread_cond_init(&sd_card_mounted, NULL);
     if (pthread_mutex_init(&sd_card_access_mutex, NULL) != 0) {
         System_abort("Failed to create SD write mutex\n");
     }
+    // Set up SPI bus.
+    Board_initSDSPI();
+    // Enable GPIO.
+    Board_initGPIO();
 }
 
 /**
  * Attempts to mount the SD card. If the mount succeeds, notifies any tasks
  * waiting for the SD card to be mounted that it has been.
+ * @return true if mount succeeds, or false otherwise.
  */
 bool attempt_sd_mount(void) {
+    bool success;
     // First, lock the sd card access mutex.
     if (pthread_mutex_lock(&sd_card_access_mutex) != 0) {
         System_abort("could not lock sd card mutex");
     }
-    // Set up SPI bus.
-    Board_initSDSPI();
     SDSPI_Handle sdspi_handle;
     SDSPI_Params sdspi_params;
     FIL logfile;
@@ -73,15 +77,32 @@ bool attempt_sd_mount(void) {
     } else {
         System_printf("SPI Bus for Drive %u started\n", DRIVE_NUM);
     }
-    if (sd_online(STR(DRIVE_NUM), &(logfile.fs))) {
-        // Sd card did mount. Signal waiting tasks, and return true.
+    success = sd_online(STR(DRIVE_NUM), &(logfile.fs));
+    if (success) {
+        // Sd card did mount. Signal waiting tasks.
+        System_printf("SD card did mount\n");
         pthread_cond_broadcast(&sd_card_mounted);
-        return true;
     } else {
         // Sd card is not mounted. Undo SPI bus initialization.
         SDSPI_close(sdspi_handle);
-        return false;
     }
+    // Unlock the mutex.
+    pthread_mutex_unlock(&sd_card_access_mutex);
+    System_flush();
+    return success;
+}
+
+/**
+ * Waits for the SD card to be mounted.
+ */
+void wait_sd_ready(void) {
+    // First, lock the sd card access mutex.
+    if (pthread_mutex_lock(&sd_card_access_mutex) != 0) {
+        System_abort("could not lock sd card mutex");
+    }
+    pthread_cond_wait(&sd_card_mounted, &sd_card_access_mutex);
+    // Unlock the mutex.
+    pthread_mutex_unlock(&sd_card_access_mutex);
 }
 
 /**
