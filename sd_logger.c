@@ -18,20 +18,9 @@
 /* Board Header file */
 #include "Board.h"
 
-#include "uart_console.h"
+#include "uart_console_task.h"
 
-/*
- *  ======== heartBeatFxn ========
- *  Toggle the Board_LED0. The Task_sleep is determined by arg0 which
- *  is configured for the heartBeat Task instance.
- */
-Void heartBeatFxn(UArg arg0, UArg arg1)
-{
-    while (1) {
-        Task_sleep((UInt)arg0);
-        GPIO_toggle(Board_LED0);
-    }
-}
+
 
 /*
  *  ======== main ========

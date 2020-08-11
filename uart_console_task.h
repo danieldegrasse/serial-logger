@@ -1,5 +1,5 @@
 /*
- * @file uart_console.h
+ * @file uart_console_task.h
  * Exposes UART prebios function, and any other required functions from the
  * UART Console task
  */

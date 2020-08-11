@@ -66,7 +66,7 @@ int handle_command(CLIContext *ctx, char *cmd) {
     // Now, find the command to run.
     entry = COMMANDS;
     while (entry->cmd_name != NULL) {
-        if (strcmp(entry->cmd_name, arguments[0]) == 0) {
+        if (strncmp(entry->cmd_name, arguments[0], CLI_MAX_LINE) == 0) {
             return entry->cmd_fxn(ctx, arguments, argc);
         }
         entry++;
@@ -93,7 +93,7 @@ static int help(CLIContext *ctx, char **argv, int argc) {
         return 0;
     } else if (argc == 2) {
         while (entry->cmd_name != NULL) {
-            if (strcmp(entry->cmd_name, argv[1]) == 0) {
+            if (strncmp(entry->cmd_name, argv[1], CLI_MAX_LINE) == 0) {
                 // Print help for this command.
                 cli_printf(ctx, "%s: %s\r\n", entry->cmd_name, entry->cmd_help);
                 return 0;

@@ -57,12 +57,11 @@ void cli_printf(CLIContext *context, const char *format, ...) {
     va_start(args, format);
     // Print to buffer and destroy varargs list.
     /*
-     * Note: newlib's implementation of vnsprintf appears to require a heap,
-     * which we do not have. Use the xdc version.
      * TODO: ideally, we'd implement printf with a circular buffer, so we can
      * print a string of any length.
+     * Note: vsnprintf uses the heap.
      */
-    num_print = System_vsnprintf(output_buf, PRINT_BUFLEN, format, args);
+    num_print = vsnprintf(output_buf, PRINT_BUFLEN, format, args);
     va_end(args);
     // Write the shorter value between the buffer size and num_print
     context->cli_write(output_buf,
@@ -159,6 +158,8 @@ static void cli_handle_return(CLIContext *context) {
     }
     move_line_index(context, true);
     // handle command.
+    System_printf("Console Read: %s\n", current_line->line_buf);
+    System_flush();
     handle_command(context, current_line->line_buf);
 }
 

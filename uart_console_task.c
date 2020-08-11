@@ -1,5 +1,5 @@
 /*
- * @file uart_console.c
+ * @file uart_console_task.c
  * Implements a UART console on the built in UART device, allowing for
  * a user to view and manipulate the state of the logger.
  */
