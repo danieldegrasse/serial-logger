@@ -8,6 +8,13 @@
 #include "cli.h"
 #include "sd_card.h"
 
+/* TI-RTOS Header files */
+#include <ti/drivers/GPIO.h>
+#include <ti/drivers/UART.h>
+
+/* Board-specific functions */
+#include "Board.h"
+
 typedef struct {
     char *cmd_name;
     int (*cmd_fxn)(CLIContext *, char **, int);
@@ -42,7 +49,8 @@ const CmdEntry COMMANDS[] = {
      "Prints help for this commandline.\r\n"
      "supply the name of a command after \"help\" for help with that command"},
     {"sdcard", sdcard,
-     "Manages the sdcard. Use \"sdcard mount\" to mount the sdcard"},
+     "Manages the sdcard. Use \"sdcard mount\" to mount the sdcard\r\n"
+     "\"sdcard unmount \" will unmount it"},
     // Add more entries here.
     {NULL, NULL, NULL}};
 
@@ -128,12 +136,25 @@ static int sdcard(CLIContext *ctx, char **argv, int argc) {
         return 255;
     }
     if (strncmp(argv[1], "mount", 5) == 0) {
-        cli_printf(ctx, "Attempting to mount sdcard...\r\n");
+        if (sd_card_mounted()) {
+            cli_printf(ctx, "SD card is already mounted\r\n");
+            return 0;
+        }
+        cli_printf(ctx, "Attempting to mount sdcard...");
         if (attempt_sd_mount()) {
             cli_printf(ctx, "Success\r\n");
+            return 0;
         } else {
-            cli_printf(ctx, "Failed.\r\n");
+            cli_printf(ctx, "Failed\r\n");
+            return 255;
         }
+    } else if (strncmp(argv[1], "unmount", 7) == 0) {
+        if (!sd_card_mounted()) {
+            cli_printf(ctx, "SD card is not mounted\r\n");
+            return 0;
+        }
+        unmount_sd_card();
+        cli_printf(ctx, "SD card unmounted\r\n");
         return 0;
     } else {
         cli_printf(ctx, "Unknown command %s. Try \"help sdcard\"\r\n", argv[1]);

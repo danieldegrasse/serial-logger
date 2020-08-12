@@ -21,19 +21,14 @@
  * @param arg1 unused
  */
 void uart_logger_task_entry(UArg arg0, UArg arg1) {
-    System_printf("Attempting sd mount\n");
-    System_flush();
     /*
      * Try to mount the SD card, and if it fails wait for the sd_ready
      * condition.
      */
     if (!attempt_sd_mount()) {
-        System_printf("Sd mount failed\n");
-        System_flush();
+        // Wait for the SD card to be ready and mounted.
         wait_sd_ready();
-        System_printf("After wait, sd card was mounted\n");
-    } else {
-        System_printf("SD card mounted successfully\n");
     }
+    System_printf("SD card mounted\n");
     System_flush();
 }
