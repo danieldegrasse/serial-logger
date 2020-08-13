@@ -14,15 +14,17 @@
 
 #include "sd_card.h"
 #include "uart_console_task.h"
+#include "uart_logger_task.h"
 
 /*
  *  ======== main ========
  */
 int main(void) {
-    /* Call board init functions */
+    /* Call general board init*/
     Board_initGeneral();
-    Board_initGPIO();
-    uart_task_prebios();
+    Board_initUART(); // Done here since both the console and logger use it.
+    uart_console_prebios();
+    uart_logger_prebios();
     // Setup required pthread variables for the SD card.
     sd_setup();
     /* Start BIOS */

@@ -33,7 +33,9 @@ typedef struct {
 #define DELIMETER " "
 
 static int help(CLIContext *ctx, char **argv, int argc);
-static int sdcard(CLIContext *ctx, char **argv, int argc);
+static int mount(CLIContext *ctx, char **argv, int argc);
+static int unmount(CLIContext *ctx, char **argv, int argc);
+static int sdstatus(CLIContext *ctx, char **argv, int argc);
 
 /**
  * Declaration of commands. Syntax is as follows:
@@ -48,9 +50,9 @@ const CmdEntry COMMANDS[] = {
     {"help", help,
      "Prints help for this commandline.\r\n"
      "supply the name of a command after \"help\" for help with that command"},
-    {"sdcard", sdcard,
-     "Manages the sdcard. Use \"sdcard mount\" to mount the sdcard\r\n"
-     "\"sdcard unmount \" will unmount it"},
+    {"mount", mount, "Mounts the SD card"},
+    {"unmount", unmount, "Unmounts the SD card"},
+    {"sdstatus", sdstatus, "Gets the mount status of the SD card"},
     // Add more entries here.
     {NULL, NULL, NULL}};
 
@@ -123,41 +125,58 @@ static int help(CLIContext *ctx, char **argv, int argc) {
 }
 
 /**
- * SD card handler function. Allows the console to control the state of the
- * SD card by mounting or unmounting it.
+ * Attempts to mount the SD card.
  * @param ctx: CLI context to print to
  * @param argv list of arguments
  * @param argc argument count
  * @return 0 on success, or another value on failure
  */
-static int sdcard(CLIContext *ctx, char **argv, int argc) {
-    if (argc != 2) {
-        cli_printf(ctx, "Unsupported number of arguments\r\n");
+static int mount(CLIContext *ctx, char **argv, int argc) {
+    if (argc != 1) {
+        cli_printf(ctx, "Unexpected arguments!\r\n");
         return 255;
     }
-    if (strncmp(argv[1], "mount", 5) == 0) {
-        if (sd_card_mounted()) {
-            cli_printf(ctx, "SD card is already mounted\r\n");
-            return 0;
-        }
-        cli_printf(ctx, "Attempting to mount sdcard...");
-        if (attempt_sd_mount()) {
-            cli_printf(ctx, "Success\r\n");
-            return 0;
-        } else {
-            cli_printf(ctx, "Failed\r\n");
-            return 255;
-        }
-    } else if (strncmp(argv[1], "unmount", 7) == 0) {
-        if (!sd_card_mounted()) {
-            cli_printf(ctx, "SD card is not mounted\r\n");
-            return 0;
-        }
-        unmount_sd_card();
-        cli_printf(ctx, "SD card unmounted\r\n");
+    if (sd_card_mounted()) {
+        cli_printf(ctx, "SD card is already mounted\r\n");
+        return 0;
+    }
+    cli_printf(ctx, "Attempting to mount sdcard...");
+    if (attempt_sd_mount()) {
+        cli_printf(ctx, "Success\r\n");
         return 0;
     } else {
-        cli_printf(ctx, "Unknown command %s. Try \"help sdcard\"\r\n", argv[1]);
+        cli_printf(ctx, "Failed\r\n");
         return 255;
     }
+}
+
+/**
+ * Attempts to unmount the SD card.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int unmount(CLIContext *ctx, char **argv, int argc) {
+    if (!sd_card_mounted()) {
+        cli_printf(ctx, "SD card is not mounted\r\n");
+        return 0;
+    }
+    unmount_sd_card();
+    cli_printf(ctx, "SD card unmounted\r\n");
+    return 0;
+}
+
+/**
+ * Reports the mount status of the SD card.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+
+static int sdstatus(CLIContext *ctx, char **argv, int argc) {
+    cli_printf(ctx, "SD card is %s\r\n",
+               sd_card_mounted() ? "mounted" : "unmounted");
+    return 0;
 }

@@ -10,5 +10,5 @@
  * UART device on linux will be ttyACM0.
  * This code MUST be called before the BIOS is started.
  */
-void uart_task_prebios(void);
+void uart_console_prebios(void);
 

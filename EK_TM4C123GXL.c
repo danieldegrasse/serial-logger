@@ -570,6 +570,13 @@ const UARTTivaDMA_HWAttrs uartTivaHWAttrs[EK_TM4C123GXL_UARTCOUNT] = {
         .intPriority = (~0),
         .rxChannelIndex = UDMA_CH8_UART0RX,
         .txChannelIndex = UDMA_CH9_UART0TX,
+    },
+    {
+        .baseAddr = UART2_BASE,
+        .intNum = INT_UART2,
+        .intPriority = (~0),
+        .rxChannelIndex = UDMA_CH8_UART0RX,
+        .txChannelIndex = UDMA_CH9_UART0TX,
     }
 };
 
@@ -578,6 +585,11 @@ const UART_Config UART_config[] = {
         .fxnTablePtr = &UARTTivaDMA_fxnTable,
         .object = &uartTivaObjects[0],
         .hwAttrs = &uartTivaHWAttrs[0]
+    },
+    {
+        .fxnTablePtr = &UARTTivaDMA_fxnTable,
+        .object = &uartTivaObjects[1],
+        .hwAttrs = &uartTivaHWAttrs[1]
     },
     {NULL, NULL, NULL}
 };
@@ -596,6 +608,14 @@ const UARTTiva_HWAttrs uartTivaHWAttrs[EK_TM4C123GXL_UARTCOUNT] = {
         .flowControl = UART_FLOWCONTROL_NONE,
         .ringBufPtr  = uartTivaRingBuffer[0],
         .ringBufSize = sizeof(uartTivaRingBuffer[0])
+    },
+    {
+        .baseAddr = UART2_BASE,
+        .intNum = INT_UART2,
+        .intPriority = (~0),
+        .flowControl = UART_FLOWCONTROL_NONE,
+        .ringBufPtr  = uartTivaRingBuffer[1],
+        .ringBufSize = sizeof(uartTivaRingBuffer[1])
     }
 };
 
@@ -604,6 +624,11 @@ const UART_Config UART_config[] = {
         .fxnTablePtr = &UARTTiva_fxnTable,
         .object = &uartTivaObjects[0],
         .hwAttrs = &uartTivaHWAttrs[0]
+    },
+    {
+        .fxnTablePtr = &UARTTiva_fxnTable,
+        .object = &uartTivaObjects[1],
+        .hwAttrs = &uartTivaHWAttrs[1]
     },
     {NULL, NULL, NULL}
 };
@@ -619,6 +644,11 @@ void EK_TM4C123GXL_initUART(void)
     GPIOPinConfigure(GPIO_PA0_U0RX);
     GPIOPinConfigure(GPIO_PA1_U0TX);
     GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
+    /* Enable UART 2 as well */
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART2);
+    GPIOPinConfigure(GPIO_PD6_U2RX);
+    GPIOPinConfigure(GPIO_PD7_U2TX);
+    GPIOPinTypeUART(GPIO_PORTD_BASE, GPIO_PIN_6 | GPIO_PIN_7);
 
     /* Initialize the UART driver */
 #if TI_DRIVERS_UART_DMA

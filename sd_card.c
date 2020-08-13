@@ -105,9 +105,11 @@ bool attempt_sd_mount(void) {
          * If the SPI bus has not been setup, it will not be and the MCU will
          * reset.
          * 
-         * Delay for 250ms to let the SD card see the bus.
+         * Delay for 1000ms to let the SD card see the bus.
+         * Don't shorten this delay, I tried and the card needs time to *think*
          */
-        Task_sleep(250);
+        Task_sleep(1000);
+        FIRST_INIT = false;
     }
     // Now power up the SD card again.
     GPIO_write(Board_SDCARD_VCC, Board_LED_ON);

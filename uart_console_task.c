@@ -23,7 +23,7 @@
 
 // UART configuration.
 #define BAUD_RATE 115200
-#define UART_DEV Board_UART0
+#define UART_DEV Board_UART2
 
 static UART_Handle uart;
 static UART_Params params;
@@ -33,15 +33,11 @@ static int uart_write(char* out, int n);
 
 /*
  * PreOS Task for UART console. Sets up uart instance for data transmission,
- * and creates UART console task.
  * UART device on linux will be ttyACM0.
  * This code MUST be called before the BIOS is started.
  */
-void uart_task_prebios(void)
+void uart_console_prebios(void)
 {
-    Board_initUART();
-    System_printf("Setup UART Device\n");
-    System_flush();
     /*
      * UART defaults to text mode, echo back characters, and return from read 
      * after newline. Default 8 bits, one stop bit, no parity.
@@ -57,6 +53,8 @@ void uart_task_prebios(void)
     if (uart == NULL) {
         System_abort("Error opening the UART device");
     }
+    System_printf("Setup UART Console\n");
+    System_flush();
 }
 
 
