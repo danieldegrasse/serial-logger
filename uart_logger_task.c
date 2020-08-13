@@ -4,8 +4,8 @@
  * to an SD card log file.
  * 
  * Pins Required:
- * PD6- UART RX
- * PD7- UART TX
+ * PC6- UART RX
+ * PC7- UART TX
  */
 
 /* XDCtools Header files */
@@ -27,7 +27,7 @@
 
 // UART configuration.
 #define LOG_BAUD_RATE 115200
-#define UART_LOGDEV Board_UART0
+#define UART_LOGDEV Board_UART3
 // Number of bytes to read from the UART before flushing to SD card.
 #define READSIZE 16
 

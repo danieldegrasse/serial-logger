@@ -610,8 +610,8 @@ const UARTTiva_HWAttrs uartTivaHWAttrs[EK_TM4C123GXL_UARTCOUNT] = {
         .ringBufSize = sizeof(uartTivaRingBuffer[0])
     },
     {
-        .baseAddr = UART2_BASE,
-        .intNum = INT_UART2,
+        .baseAddr = UART3_BASE,
+        .intNum = INT_UART3,
         .intPriority = (~0),
         .flowControl = UART_FLOWCONTROL_NONE,
         .ringBufPtr  = uartTivaRingBuffer[1],
@@ -645,10 +645,10 @@ void EK_TM4C123GXL_initUART(void)
     GPIOPinConfigure(GPIO_PA1_U0TX);
     GPIOPinTypeUART(GPIO_PORTA_BASE, GPIO_PIN_0 | GPIO_PIN_1);
     /* Enable UART 2 as well */
-    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART2);
-    GPIOPinConfigure(GPIO_PD6_U2RX);
-    GPIOPinConfigure(GPIO_PD7_U2TX);
-    GPIOPinTypeUART(GPIO_PORTD_BASE, GPIO_PIN_6 | GPIO_PIN_7);
+    SysCtlPeripheralEnable(SYSCTL_PERIPH_UART3);
+    GPIOPinConfigure(GPIO_PC6_U3RX);
+    GPIOPinConfigure(GPIO_PC7_U3TX);
+    GPIOPinTypeUART(GPIO_PORTC_BASE, GPIO_PIN_6 | GPIO_PIN_7);
 
     /* Initialize the UART driver */
 #if TI_DRIVERS_UART_DMA

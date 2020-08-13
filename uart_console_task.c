@@ -23,7 +23,7 @@
 
 // UART configuration.
 #define BAUD_RATE 115200
-#define UART_DEV Board_UART2
+#define UART_DEV Board_UART0
 
 static UART_Handle uart;
 static UART_Params params;
