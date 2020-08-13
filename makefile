@@ -5,9 +5,9 @@ CC = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gcc"
 LNK = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gcc"
 
 XDC_INSTALL_DIR := /home/danieldegrasse/ti/xdctools_3_32_00_06_core
-TIRTOS_INSTALL_DIR := /home/danieldegrasse/ti/tirtos_tivac_2_16_00_08
-TIDRIVERS_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/tidrivers_tivac_2_16_00_08
-BIOS_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/bios_6_45_01_29
+TIRTOS_INSTALL_DIR := /home/danieldegrasse/ti/tirtos_tivac_2_16_01_14
+TIDRIVERS_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/tidrivers_tivac_2_16_01_13
+BIOS_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/bios_6_45_02_31
 NDK_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/ndk_2_25_00_09
 NS_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/ns_1_11_00_10
 UIA_INSTALL_DIR := $(TIRTOS_INSTALL_DIR)/products/uia_2_00_05_50
@@ -43,7 +43,6 @@ else
         remove = rm -f $(subst /,\,$1)
         pwd    = pwd
 endif
-
 ###### recursive wildcard function #######
 rwildcard=$(wildcard $1$2) $(foreach d, $(wildcard $1*),$(call rwildcard,$d/,$2))
 
