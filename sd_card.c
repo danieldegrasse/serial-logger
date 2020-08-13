@@ -86,33 +86,19 @@ bool attempt_sd_mount(void) {
         return SD_CARD_MOUNTED;
     }
     /**
-     * The power toggle sequence below is required because the MCU will reset
-     * if the SD card is plugged in while power is supplied to the SD card.
-     * Therefore, we keep the power to the card disabled until a mount of it
-     * is requested. The power off here is precautionary, the SD card should
-     * not be powered at this point.
+     * 
+     * The SD Card needs to be aware of the SPI signal before it is powered.
+     * If the SPI bus has not been setup, it will not be and the MCU will
+     * reset.
+     * 
+     * Delay for 1000ms to let the SD card see the bus.
+     * Don't shorten this delay, I tried and the card needs time to *think*
      */
-    // Power off the SD card by disabling the VCC pin.
-    GPIO_write(Board_SDCARD_VCC, Board_LED_OFF);
+    // Power up the SD card
+    GPIO_write(Board_SDCARD_VCC, Board_LED_ON);
     /* Try to mount the SD card. */
     SDSPI_Params_init(&sdspi_params);
     SDSPI_HANDLE = SDSPI_open(Board_SDSPI0, DRIVE_NUM, &sdspi_params);
-    if (FIRST_INIT) {
-        /**
-         * FIRST_INIT tracks if the SPI Bus has been setup for the SD card.
-         * 
-         * The SD Card needs to be aware of the SPI signal before it is powered.
-         * If the SPI bus has not been setup, it will not be and the MCU will
-         * reset.
-         * 
-         * Delay for 1000ms to let the SD card see the bus.
-         * Don't shorten this delay, I tried and the card needs time to *think*
-         */
-        Task_sleep(1000);
-        FIRST_INIT = false;
-    }
-    // Now power up the SD card again.
-    GPIO_write(Board_SDCARD_VCC, Board_LED_ON);
     if (SDSPI_HANDLE == NULL) {
         System_abort("Error starting the SD card\n");
     } else {

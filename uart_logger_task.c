@@ -2,7 +2,7 @@
  * @file uart_logger.c
  * Implements the task responsible for reading data from a UART, and writing it
  * to an SD card log file.
- * 
+ *
  * Pins Required:
  * PC6- UART RX
  * PC7- UART TX
@@ -40,7 +40,7 @@ static UART_Params params;
  */
 void uart_logger_prebios(void) {
     /*
-     * UART defaults to text mode, echo back characters, and return from read 
+     * UART defaults to text mode, echo back characters, and return from read
      * after newline. Default 8 bits, one stop bit, no parity.
      */
     UART_Params_init(&params);
@@ -66,6 +66,11 @@ void uart_logger_prebios(void) {
  */
 void uart_logger_task_entry(UArg arg0, UArg arg1) {
     char read_buf[READSIZE];
+    /**
+     * Sleep for 100 ms. For some reason, the MCU resets if the SD card is
+     * powered up too soon.
+     */
+    Task_sleep(100);
     /*
      * Try to mount the SD card, and if it fails wait for the sd_ready
      * condition.
