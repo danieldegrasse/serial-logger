@@ -5,16 +5,17 @@
  */
 
 /* XDCtools Header files */
-#include <xdc/std.h>
 #include <xdc/runtime/System.h>
+#include <xdc/std.h>
 
 /* BIOS Header files */
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Task.h>
 
 /* TI-RTOS Header files */
-#include <ti/drivers/GPIO.h>
 #include <ti/drivers/UART.h>
+
+#include <stdbool.h>
 
 /* Board-specific functions */
 #include "Board.h"
@@ -28,18 +29,17 @@
 static UART_Handle uart;
 static UART_Params params;
 
-static int uart_read(char* in, int n);
-static int uart_write(char* out, int n);
+static int uart_read(char *in, int n);
+static int uart_write(char *out, int n);
 
 /*
  * PreOS Task for UART console. Sets up uart instance for data transmission,
  * UART device on linux will be ttyACM0.
  * This code MUST be called before the BIOS is started.
  */
-void uart_console_prebios(void)
-{
+void uart_console_prebios(void) {
     /*
-     * UART defaults to text mode, echo back characters, and return from read 
+     * UART defaults to text mode, echo back characters, and return from read
      * after newline. Default 8 bits, one stop bit, no parity.
      */
     UART_Params_init(&params);
@@ -57,15 +57,13 @@ void uart_console_prebios(void)
     System_flush();
 }
 
-
 /*
  * Task entry for the UART console handler. This task is created statically,
  * see the "Task creation" section of the cfg file.
  * @param arg0 unused
  * @param arg1 unused
  */
-void uart_task_entry(UArg arg0, UArg arg1)
-{
+void uart_task_entry(UArg arg0, UArg arg1) {
     CLIContext uart_context;
     cli_context_init(&uart_context);
     uart_context.cli_read = uart_read;
@@ -73,16 +71,13 @@ void uart_task_entry(UArg arg0, UArg arg1)
     start_cli(&uart_context); // Does not return.
 }
 
-
 /**
  * Write data to the UART device.
  * @param out buffer of data to write to UART device
  * @param n length of out in bytes.
  * @return number of byte written to UART.
  */
-static int uart_write(char* out, int n) {
-    return UART_write(uart, out, n);
-}
+static int uart_write(char *out, int n) { return UART_write(uart, out, n); }
 
 /**
  * Read data from the UART device.
@@ -90,6 +85,4 @@ static int uart_write(char* out, int n) {
  * @param n number of bytes to read.
  * @return number of bytes read.
  */
-static int uart_read(char* in, int n) {
-    return UART_read(uart, in, n);
-}
+static int uart_read(char *in, int n) { return UART_read(uart, in, n); }

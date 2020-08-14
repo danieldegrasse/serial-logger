@@ -3,6 +3,8 @@
  * Exposes UART prebios function, and any other required functions from the
  * UART Console task
  */
+#ifndef UART_CONSOLE_TASK_H
+#define UART_CONSOLE_TASK_H
 
 /*
  * PreOS Task for UART console. Sets up uart instance for data transmission,
@@ -12,3 +14,4 @@
  */
 void uart_console_prebios(void);
 
+#endif

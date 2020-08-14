@@ -5,12 +5,13 @@
 
 #include <string.h>
 
-#include "cli.h"
-#include "sd_card.h"
-
 /* TI-RTOS Header files */
 #include <ti/drivers/GPIO.h>
 #include <ti/drivers/UART.h>
+
+#include "cli.h"
+#include "sd_card.h"
+#include "uart_logger_task.h"
 
 /* Board-specific functions */
 #include "Board.h"
@@ -36,6 +37,10 @@ static int help(CLIContext *ctx, char **argv, int argc);
 static int mount(CLIContext *ctx, char **argv, int argc);
 static int unmount(CLIContext *ctx, char **argv, int argc);
 static int sdstatus(CLIContext *ctx, char **argv, int argc);
+static int sdpwr(CLIContext *ctx, char **argv, int argc);
+static int sdwrite(CLIContext *ctx, char **argv, int argc);
+static int logfile_size(CLIContext *ctx, char **argv, int argc);
+static int connect_log(CLIContext *ctx, char **argv, int argc);
 
 /**
  * Declaration of commands. Syntax is as follows:
@@ -52,7 +57,12 @@ const CmdEntry COMMANDS[] = {
      "supply the name of a command after \"help\" for help with that command"},
     {"mount", mount, "Mounts the SD card"},
     {"unmount", unmount, "Unmounts the SD card"},
-    {"sdstatus", sdstatus, "Gets the mount status of the SD card"},
+    {"sdstatus", sdstatus, "Gets the mount and power status of the SD card"},
+    {"sdpwr", sdpwr,
+     "Sets the power status of SD card: \"sdpwr on\" or \"sdpwr off\""},
+    {"sdwrite", sdwrite, "Writes provided string to the SD card"},
+    {"filesize", logfile_size, "Gets the size of the log file in bytes"},
+    {"connect_log", connect_log, "Connects to the UART console being logged"},
     // Add more entries here.
     {NULL, NULL, NULL}};
 
@@ -168,7 +178,7 @@ static int unmount(CLIContext *ctx, char **argv, int argc) {
 }
 
 /**
- * Reports the mount status of the SD card.
+ * Reports the mount and power status of the SD card.
  * @param ctx: CLI context to print to
  * @param argv list of arguments
  * @param argc argument count
@@ -178,5 +188,88 @@ static int unmount(CLIContext *ctx, char **argv, int argc) {
 static int sdstatus(CLIContext *ctx, char **argv, int argc) {
     cli_printf(ctx, "SD card is %s\r\n",
                sd_card_mounted() ? "mounted" : "unmounted");
+    cli_printf(ctx, "SD card power: %s\r\n",
+               GPIO_read(Board_SDCARD_VCC) ? "on" : "off");
+    return 0;
+}
+
+/**
+ * Manually controls power to the SD card. Useful for debugging.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int sdpwr(CLIContext *ctx, char **argv, int argc) {
+    if (argc != 2) {
+        cli_printf(ctx, "Unsupported number of arguments\r\n");
+        return 255;
+    }
+    if (strncmp("on", argv[1], 2) == 0) {
+        GPIO_write(Board_SDCARD_VCC, Board_LED_ON);
+        cli_printf(ctx, "SD card power on\r\n");
+        return 0;
+    } else if (strncmp("off", argv[1], 3) == 0) {
+        GPIO_write(Board_SDCARD_VCC, Board_LED_OFF);
+        cli_printf(ctx, "SD card power off\r\n");
+        return 0;
+    } else {
+        cli_printf(ctx, "Unknown argument %s\r\n", argv[1]);
+        return 255;
+    }
+}
+
+/**
+ * Writes provided string to the SD card.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int sdwrite(CLIContext *ctx, char **argv, int argc) {
+    if (argc != 2) {
+        cli_printf(ctx, "Unsupported number of arguments\r\n");
+        return 255;
+    }
+    // Check SD card mount status
+    if (!sd_card_mounted()) {
+        cli_printf(ctx, "Cannot write to SD card, not mounted\r\n");
+        return 255;
+    }
+    // Write the string to the SD card.
+    if (write_sd(argv[1], strlen(argv[1])) != strlen(argv[1])) {
+        cli_printf(ctx, "Write error!\r\n");
+        return 255;
+    }
+    return 0;
+}
+
+/**
+ * Gets the size of the the logfile in bytes.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int logfile_size(CLIContext *ctx, char **argv, int argc) {
+    cli_printf(ctx, "SD card file size is: %d\r\n", filesize());
+    return 0;
+}
+
+/**
+ * Connects directly to the UART device being logged from. Useful for
+ * situations where the logged device exposes a terminal, and you'd like to
+ * access it.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int connect_log(CLIContext *ctx, char **argv, int argc) {
+    UART_Queue_Elem *elem;
+    // For now, just read from queue.
+    FORWARD_UART_LOGS = true;
+    elem = Queue_get(uart_log_queue);
+    cli_printf(ctx, "Latest char was %c\r\n", elem->data);
     return 0;
 }

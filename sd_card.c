@@ -5,15 +5,15 @@
  *
  * ============== Required Pins ==================:
  * The SD card is driven via SPI. The following pins are used:
- * VCC- PE3 (required for hotplugging SD card)
  * CLK- PB4
  * MISO- PB6
  * MOSI- PB7
  * CS- PA5
- *
- * If hotplugging the SD card is desired, PE3 will be pulled high when the
+ * PF4- SD write activity LED.
+ * PA2- See below
+ * If hotplugging the SD card is desired, PA2 will be pulled high when the
  * system wants to power the SD card. a MOSFET or BJT will be  required because
- * PE3 cannot supply enough current for the SD card.
+ * PA2 cannot supply enough current for the SD card.
  */
 
 /* XDCtools Header files */
@@ -40,16 +40,18 @@
 
 // Drive number, as well as macros to convert it to a string
 #define DRIVE_NUM 0
-#define STR(n) #n
+#define STR_(n) #n
+#define STR(n) STR_(n)
 
 // Global variables.
 pthread_cond_t SD_CARD_READY;
 pthread_mutex_t SD_CARD_RW_MUTEX;
 bool SD_CARD_MOUNTED = false;
 SDSPI_Handle SDSPI_HANDLE;
-bool FIRST_INIT = true;
+FIL LOGFILE;
 
 static bool sd_online(const char *drive_num, FATFS **fs);
+static bool open_file(const char *filename, FIL *outfile);
 
 /**
  * Runs required setup for the SD card. Should be called before BIOS starts.
@@ -72,7 +74,7 @@ void sd_setup(void) {
  */
 bool attempt_sd_mount(void) {
     SDSPI_Params sdspi_params;
-    FIL logfile;
+    const char logfilename[] = STR(DRIVE_NUM) ":uart_log.txt";
     bool success;
     // First, lock the sd card access mutex.
     if (pthread_mutex_lock(&SD_CARD_RW_MUTEX) != 0) {
@@ -86,13 +88,13 @@ bool attempt_sd_mount(void) {
         return SD_CARD_MOUNTED;
     }
     /**
-     * 
+     *
      * The SD Card needs to be aware of the SPI signal before it is powered.
      * If the SPI bus has not been setup, it will not be and the MCU will
      * reset.
-     * 
-     * Delay for 1000ms to let the SD card see the bus.
-     * Don't shorten this delay, I tried and the card needs time to *think*
+     *
+     * For this reason, we wait to power up the sd card until after the early
+     * init of the bus is done (in main).
      */
     // Power up the SD card
     GPIO_write(Board_SDCARD_VCC, Board_LED_ON);
@@ -104,9 +106,13 @@ bool attempt_sd_mount(void) {
     } else {
         System_printf("SPI Bus for Drive %u started\n", DRIVE_NUM);
     }
-    success = SD_CARD_MOUNTED = sd_online(STR(DRIVE_NUM), &(logfile.fs));
+    success = SD_CARD_MOUNTED = sd_online(STR(DRIVE_NUM), &(LOGFILE.fs));
     if (success) {
-        // Sd card did mount. Signal waiting tasks.
+        // Sd card did mount. Open the log file for writing.
+        if (!open_file(logfilename, &LOGFILE)) {
+            System_abort("SD card is mounted, but cannot write file");
+        }
+        // Signal waiting tasks that the SD card is ready.
         pthread_cond_broadcast(&SD_CARD_READY);
     } else {
         // Sd card is not mounted. Undo SPI bus initialization.
@@ -124,19 +130,21 @@ bool attempt_sd_mount(void) {
  * Unmounts the SD card.
  */
 void unmount_sd_card(void) {
-// First, lock the sd card access mutex.
+    // First, lock the sd card access mutex.
     if (pthread_mutex_lock(&SD_CARD_RW_MUTEX) != 0) {
         System_abort("could not lock sd card mutex");
     }
+    // Flush all pending writes to the SD card, and close the log file.
+    f_sync(&LOGFILE);
+    f_close(&LOGFILE);
+    // Power the SD card VCC back off.
+    GPIO_write(Board_SDCARD_VCC, Board_LED_OFF);
     // Undo SPI bus initialization.
     SDSPI_close(SDSPI_HANDLE);
     SD_CARD_MOUNTED = false;
-    // Power the SD card VCC back off.
-    GPIO_write(Board_SDCARD_VCC, Board_LED_OFF);
     // Unlock the mutex.
     pthread_mutex_unlock(&SD_CARD_RW_MUTEX);
 }
-
 
 /**
  * Gets the mount status of the SD card.
@@ -168,6 +176,46 @@ void wait_sd_ready(void) {
 }
 
 /**
+ * Writes data to the SD card.
+ * @param data data buffer to write to the SD card.
+ * @param n number of bytes to write.
+ * @return number of bytes written, or -1 on error.
+ */
+int write_sd(void *data, int n) {
+    FRESULT fresult;
+    unsigned int bytes_written;
+    // First, lock the sd card access mutex.
+    if (pthread_mutex_lock(&SD_CARD_RW_MUTEX) != 0) {
+        System_abort("could not lock sd card mutex");
+    }
+    fresult = f_write(&LOGFILE, data, n, &bytes_written);
+    // Unlock the mutex
+    pthread_mutex_unlock(&SD_CARD_RW_MUTEX);
+    if (fresult) {
+        return -1;
+    } else {
+        // Toggle write activity LED.
+        GPIO_toggle(Board_WRITE_ACTIVITY_LED);
+        return (int)bytes_written;
+    }
+}
+
+/**
+ * Gets the size of the log file in bytes.
+ * @return size of file in bytes.
+ */
+int filesize(void) {
+    int filesize;
+    // First, lock the sd card access mutex.
+    if (pthread_mutex_lock(&SD_CARD_RW_MUTEX) != 0) {
+        System_abort("could not lock sd card mutex");
+    }
+    filesize = f_size(&LOGFILE);
+    pthread_mutex_unlock(&SD_CARD_RW_MUTEX);
+    return filesize;
+}
+
+/**
  * Checks if the SD card is online by attempting to check the free cluster
  * count.
  * @param drive_num: drive number as a string, use STR(DRIVE_NUM)
@@ -193,4 +241,32 @@ static bool sd_online(const char *drive_num, FATFS **fs) {
         System_flush();
         return true;
     }
+}
+
+/**
+ * Attempts to open the file given by "filename" using the FIL structure
+ * "outfile"
+ * @param filename: filename to open, formatted with the drive number
+ * @param outfile: output file structure to fill
+ * @return true if file is opened successfully, or false otherwise.
+ */
+static bool open_file(const char *filename, FIL *outfile) {
+    FRESULT fresult;
+    fresult = f_open(outfile, filename, FA_READ | FA_WRITE);
+    if (fresult != FR_OK) {
+        System_printf("Creating new file \"%s\"\n", filename);
+        fresult = f_open(outfile, filename, FA_CREATE_NEW | FA_READ | FA_WRITE);
+        if (fresult != FR_OK) {
+            return false;
+        }
+        System_flush();
+    } else {
+        // Seek to the end of the file.
+        fresult = f_lseek(outfile, f_size(outfile));
+        if (fresult != FR_OK) {
+            f_close(outfile);
+            return false;
+        }
+    }
+    return true;
 }

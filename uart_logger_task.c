@@ -14,22 +14,24 @@
 
 /* BIOS Header files */
 #include <ti/sysbios/BIOS.h>
+#include <ti/sysbios/knl/Queue.h>
 #include <ti/sysbios/knl/Task.h>
 
 /* TI-RTOS Header files */
-#include <ti/drivers/GPIO.h>
 #include <ti/drivers/UART.h>
 
 /* Board header file */
 #include "Board.h"
 
 #include "sd_card.h"
+#include "uart_logger_task.h"
 
 // UART configuration.
 #define LOG_BAUD_RATE 115200
 #define UART_LOGDEV Board_UART3
-// Number of bytes to read from the UART before flushing to SD card.
-#define READSIZE 16
+
+// If set to true, this task will enqueue UART data as it reads it.
+bool FORWARD_UART_LOGS = false;
 
 static UART_Handle uart;
 static UART_Params params;
@@ -65,12 +67,8 @@ void uart_logger_prebios(void) {
  * @param arg1 unused
  */
 void uart_logger_task_entry(UArg arg0, UArg arg1) {
-    char read_buf[READSIZE];
-    /**
-     * Sleep for 100 ms. For some reason, the MCU resets if the SD card is
-     * powered up too soon.
-     */
-    Task_sleep(100);
+    char read_char;
+    UART_Queue_Elem queue_element;
     /*
      * Try to mount the SD card, and if it fails wait for the sd_ready
      * condition.
@@ -79,12 +77,35 @@ void uart_logger_task_entry(UArg arg0, UArg arg1) {
         // Wait for the SD card to be ready and mounted.
         wait_sd_ready();
     }
-    System_printf("SD card mounted\n");
-    System_flush();
-    // Now, try to read data from the UART connection.
     while (1) {
-        UART_read(uart, read_buf, READSIZE);
-        System_printf("Got data %c\n", *read_buf);
+        /**
+         * Write to the SD card until it is unmounted
+         */
+        System_printf("SD card mounted\n");
         System_flush();
+        // Now, try to read data from the UART connection.
+        while (1) {
+            // Read data from the UART.
+            UART_read(uart, &read_char, 1);
+            if (sd_card_mounted()) {
+                // Write data out to the SD card.
+                if (write_sd(&read_char, 1) != 1) {
+                    System_abort("SD card write error");
+                }
+                // If requested via bool, enqueue data as well.
+                if (FORWARD_UART_LOGS) {
+                    queue_element.data = read_char;
+                    // Add the element to the queue (atomically).
+                    Queue_put(uart_log_queue, &(queue_element.elem));
+                }
+            } else {
+                System_printf("SD card was unmounted\n");
+                System_flush();
+                // Exit loop.
+                break;
+            }
+        }
+        // Wait for SD card to be remounted.
+        wait_sd_ready();
     }
 }

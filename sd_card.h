@@ -5,15 +5,15 @@
  *
  * ============== Required Pins ==================:
  * The SD card is driven via SPI. The following pins are used:
- * VCC- PE3 (required for hotplugging SD card)
  * CLK- PB4
  * MISO- PB6
  * MOSI- PB7
  * CS- PA5
- *
- * If hotplugging the SD card is desired, PE3 will be pulled high when the
+ * PF4- SD write activity LED.
+ * PA2- See below
+ * If hotplugging the SD card is desired, PA2 will be pulled high when the
  * system wants to power the SD card. a MOSFET or BJT will be  required because
- * PE3 cannot supply enough current for the SD card.
+ * PA2 cannot supply enough current for the SD card.
  */
 
 #ifndef SD_CARD_H
@@ -49,5 +49,19 @@ void wait_sd_ready(void);
  * @return true if card is mounted, false otherwise.
  */
 bool sd_card_mounted(void);
+
+/**
+ * Writes data to the SD card.
+ * @param data data buffer to write to the SD card.
+ * @param n number of bytes to write.
+ * @return number of bytes written, or -1 on error.
+ */
+int write_sd(void *data, int n);
+
+/**
+ * Gets the size of the log file in bytes.
+ * @return size of file in bytes.
+ */
+int filesize(void);
 
 #endif
