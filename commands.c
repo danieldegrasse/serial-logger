@@ -11,7 +11,6 @@
 
 #include "cli.h"
 #include "sd_card.h"
-#include "uart_log_reader_task.h"
 #include "uart_logger_task.h"
 
 /* Board-specific functions */
@@ -270,8 +269,12 @@ static int logfile_size(CLIContext *ctx, char **argv, int argc) {
  * @return 0 on success, or another value on failure
  */
 static int connect_log(CLIContext *ctx, char **argv, int argc) {
-    start_log_reader(ctx);
-    return 0;
+    if (enable_log_forwarding(ctx) != 0) {
+        cli_printf(ctx, "Could not enable log forwarding\r\n");
+        return 255;
+    } else {
+        return 0;
+    }
 }
 
 /**
@@ -283,9 +286,11 @@ static int connect_log(CLIContext *ctx, char **argv, int argc) {
  * @return 0 on success, or another value on failure
  */
 static int disconnect_log(CLIContext *ctx, char **argv, int argc) {
-    if (stop_log_reader() != 0) {
-        cli_printf(ctx, "Cannot stop log reader from this terminal\r\n");
+    if (disable_log_forwarding() != 0) {
+        cli_printf(ctx,
+                   "Could not disable log forwarding from this terminal\r\n");
         return 255;
+    } else {
+        return 0;
     }
-    return 0;
 }

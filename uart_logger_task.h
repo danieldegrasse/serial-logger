@@ -8,8 +8,12 @@
  * PD7- UART TX
  */
 
+#ifndef UART_LOGGER_TASK_H
+#define UART_LOGGER_TASK_H
+
 #include <stdbool.h>
-#include <ti/sysbios/knl/Queue.h>
+
+#include "cli.h"
 
 /*
  * PreOS Task for UART logger. Sets up uart instance for data transmission,
@@ -18,40 +22,18 @@
 void uart_logger_prebios(void);
 
 /**
- * Enables UART log forwarding. After this function is called, get_log_char()
- * will work as expected, since the logger task will be enqueuing data.
+ * Enables UART log forwarding.
+ * @param context: CLI context to log to
+ * @return 0 if log forwarding was enabled, or -1 if another console is already
+ * using the forwarding feature.
  */
-void enable_log_forwarding(void);
+int enable_log_forwarding(CLIContext *context);
 
 /**
- * Disables UART log forwarding. After this function is called, get_log_char()
- * will stop working, since data will not longer be enqueued.
+ * Disables UART log forwarding.  
+ * @return 0 if log forwarding could be disabled, or -1 if CLI does not have
+ * permissions to do so.
  */
-void disable_log_forwarding(void);
+int disable_log_forwarding(void);
 
-/**
- * Gets a char of data from the UART logger's queue. Useful if another task
- * wants to monitor the UART logger, outside of the SD card writes.
- * Notes:
- * enable_log_forwarding() should be called to alert the logger task to enqueue
- * data it reads, or this function won't work.
- * disable_log_forwarding() should be called when the logs are not needed,
- * to improve performance.
- * If logging is enabled and data is not read periodically, the circular
- * queue element buffer will be exhausted and data WILL be lost.
- * @param out: char of data returned from queue.
- */
-void dequeue_logger_data(char *out);
-
-
-/**
- * Checks if the logger queue has data.
- * @return true if data is present, or false otherwise.
- */
-bool logger_has_data(void);
-
-/**
- * Waits for data to be ready in the logger.
- * @param timeout: How long to wait for data.
- */
-void wait_logger_data(int timeout);
+#endif

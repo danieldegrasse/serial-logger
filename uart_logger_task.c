@@ -14,9 +14,11 @@
 
 /* BIOS Header files */
 #include <ti/sysbios/BIOS.h>
-#include <ti/sysbios/knl/Queue.h>
 #include <ti/sysbios/knl/Semaphore.h>
 #include <ti/sysbios/knl/Task.h>
+
+/* Pthread support */
+#include <ti/sysbios/posix/pthread.h>
 
 /* TI-RTOS Header files */
 #include <ti/drivers/UART.h>
@@ -24,35 +26,19 @@
 /* Board header file */
 #include "Board.h"
 
+#include "cli.h"
 #include "sd_card.h"
-#include "uart_logger_task.h"
 
 // UART configuration.
 #define LOG_BAUD_RATE 115200
 #define UART_LOGDEV Board_UART3
 
-/*
- * Statically allocated semaphore for data being in queue. See "Semaphore
- * Creation" in .cfg file.
- */
-extern Semaphore_Handle logger_data_avail_sem;
-
-/*
- * Statically allocated queue for received UART log data. Used for forward data
- * when requested. See "Queue Creation" in cfg file.
- */
-extern Queue_Handle uart_log_queue;
-
-// Queue element structure.
-typedef struct {
-    Queue_Elem elem;
-    char data;
-} UART_Queue_Elem;
-
-// If set to true, this task will enqueue UART data as it reads it.
-bool FORWARD_UART_LOGS = false;
-// Maximum number of chars we will enqueue.
-#define MAX_QUEUE 64
+// Protects access to log forwarding so only one CLI task at a time can use it.
+static pthread_mutex_t LOG_FORWARD_MUTEX;
+// Protects access to log forwarding related global variables.
+static pthread_mutex_t LOG_VAR_MUTEX;
+static CLIContext *CONTEXT;
+static bool FORWARD_UART_LOGS = false;
 
 static UART_Handle uart;
 static UART_Params params;
@@ -77,6 +63,14 @@ void uart_logger_prebios(void) {
     if (uart == NULL) {
         System_abort("Error opening the UART device");
     }
+    // Setup the CLI mutex.
+    if (pthread_mutex_init(&LOG_FORWARD_MUTEX, NULL) != 0) {
+        System_abort("Failed to create log forwarding mutex\n");
+    }
+    // Setup the variable mutex.
+    if (pthread_mutex_init(&LOG_VAR_MUTEX, NULL) != 0) {
+        System_abort("Failed to create log variable mutex\n");
+    }
     System_printf("Setup UART Logger\n");
     System_flush();
 }
@@ -89,8 +83,6 @@ void uart_logger_prebios(void) {
  */
 void uart_logger_task_entry(UArg arg0, UArg arg1) {
     char read_char;
-    UART_Queue_Elem queue_elements[MAX_QUEUE];
-    int queue_idx = 0;
     /*
      * Try to mount the SD card, and if it fails wait for the sd_ready
      * condition.
@@ -114,21 +106,16 @@ void uart_logger_task_entry(UArg arg0, UArg arg1) {
                 if (write_sd(&read_char, 1) != 1) {
                     System_abort("SD card write error");
                 }
-                // If requested via bool, enqueue data as well.
-                if (FORWARD_UART_LOGS) {
-                    // Use the next statically allocated queue element.
-                    queue_elements[queue_idx].data = read_char;
-                    // Add the element to the queue (atomically).
-                    Queue_put(uart_log_queue,
-                              &(queue_elements[queue_idx].elem));
-                    queue_idx++;
-                    // Post to semaphore so any waiting tasks know we have data.
-                    Semaphore_post(logger_data_avail_sem);
-                    if (queue_idx >= MAX_QUEUE) {
-                        // Wrap the queue element index back to 0.
-                        queue_idx = 0;
-                    }
+                // Attempt to lock the log forwarding variable mutex.
+                if (pthread_mutex_lock(&LOG_VAR_MUTEX) != 0) {
+                    System_abort("Could not lock access to log variables");
                 }
+                // If log forwarding was requested, write to the CLI.
+                if (FORWARD_UART_LOGS) {
+                    CONTEXT->cli_write(&read_char, 1);
+                }
+                // Drop the lock on log forwarding vars.
+                pthread_mutex_unlock(&LOG_VAR_MUTEX);
             } else {
                 System_printf("SD card was unmounted\n");
                 System_flush();
@@ -142,50 +129,61 @@ void uart_logger_task_entry(UArg arg0, UArg arg1) {
 }
 
 /**
- * Enables UART log forwarding. After this function is called, get_log_char()
- * will work as expected, since the logger task will be enqueuing data.
+ * Enables UART log forwarding.
+ * @param context: CLI context to log to
+ * @return 0 if log forwarding was enabled, or -1 if another console is already
+ * using the forwarding feature.
  */
-void enable_log_forwarding(void) { FORWARD_UART_LOGS = true; }
-
-/**
- * Disables UART log forwarding. After this function is called, get_log_char()
- * will stop working, since data will not longer be enqueued.
- */
-void disable_log_forwarding(void) { FORWARD_UART_LOGS = false; }
-
-/**
- * Gets a char of data from the UART logger's queue. Useful if another task
- * wants to monitor the UART logger, outside of the SD card writes.
- * Notes:
- * enable_log_forwarding() should be called to alert the logger task to enqueue
- * data it reads, or this function won't work.
- * disable_log_forwarding() should be called when the logs are not needed,
- * to improve performance.
- * If logging is enabled and data is not read periodically, the circular
- * queue element buffer will be exhausted and data WILL be lost.
- * @param out: char of data returned from queue.
- */
-void dequeue_logger_data(char *out) {
-    UART_Queue_Elem *elem;
+int enable_log_forwarding(CLIContext *context) {
+    // First, get the mutex lock required for log forwarding.
+    if (pthread_mutex_trylock(&LOG_FORWARD_MUTEX) != 0) {
+        // Another thread owns the mutex, return.
+        return -1;
+    }
+    // Now, get the mutex lock required to edit the forwarding variables.
+    if (pthread_mutex_lock(&LOG_VAR_MUTEX) != 0) {
+        System_abort("Could not lock access to log variables");
+    }
+    // Now that we own the mutex, enable forwarding and set the CLI context.
+    FORWARD_UART_LOGS = true;
+    CONTEXT = context;
+    // Unlock the log variable mutex.
+    pthread_mutex_unlock(&LOG_VAR_MUTEX);
     /*
-     * Remove the element atomically
-     * (we expect other tasks to call this function)
+     * Note: do not drop the Mutex here. The CLI task thread holds the mutex
+     * until it stops log forwarding, preventing other CLI tasks from starting
+     * log forwarding while it is using it.
      */
-    elem = Queue_get(uart_log_queue);
-    *out = elem->data;
+    return 0;
 }
 
 /**
- * Checks if the logger queue has data.
- * @return true if data is present, or false otherwise.
+ * Disables UART log forwarding.  
+ * @return 0 if log forwarding could be disabled, or -1 if CLI does not have
+ * permissions to do so.
  */
-bool logger_has_data(void) { return !(Queue_empty(uart_log_queue)); }
-
-/**
- * Waits for data to be ready in the logger.
- * @param timeout: How long to wait for data.
- */
-void wait_logger_data(int timeout) {
-    // Pend on semaphore here.
-    Semaphore_pend(logger_data_avail_sem, timeout);
+int disable_log_forwarding(void) { 
+    // Lock the forwarding variables mutex.
+    if (pthread_mutex_lock(&LOG_VAR_MUTEX) != 0) {
+        System_abort("Could not lock access to log variables");
+    }
+    /*
+     * Now, try to unlock the log forwarding mutex. If this fails, the calling 
+     * thread doesn't have log forwarding running, and shouldn't be disabling
+     * it.
+     */
+    if (pthread_mutex_unlock(&LOG_FORWARD_MUTEX) != 0) { 
+        /*
+         * Don't edit the log forwarding variables, just drop their mutex 
+         * and return.
+         */
+        pthread_mutex_unlock(&LOG_VAR_MUTEX);
+        return -1;
+    }
+    // If we were able to unlock the mutex, reset the log forwarding variables.
+    FORWARD_UART_LOGS = false; 
+    CONTEXT = NULL;
+    // Now, drop the log variable mutex
+    pthread_mutex_unlock(&LOG_VAR_MUTEX);
+    return 0;
 }
