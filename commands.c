@@ -266,10 +266,17 @@ static int logfile_size(CLIContext *ctx, char **argv, int argc) {
  * @return 0 on success, or another value on failure
  */
 static int connect_log(CLIContext *ctx, char **argv, int argc) {
-    UART_Queue_Elem *elem;
-    // For now, just read from queue.
-    FORWARD_UART_LOGS = true;
-    elem = Queue_get(uart_log_queue);
-    cli_printf(ctx, "Latest char was %c\r\n", elem->data);
+    char c;
+    enable_log_forwarding();
+    while (1)
+    {
+        dequeue_logger_data(&c);
+        // temporary. Just a way to get out of loop.
+        cli_printf(ctx, "%c", c);
+        if (c == 'x') {
+            break;
+        }
+    }
+    disable_log_forwarding();
     return 0;
 }
