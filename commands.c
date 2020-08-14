@@ -11,6 +11,7 @@
 
 #include "cli.h"
 #include "sd_card.h"
+#include "uart_log_reader_task.h"
 #include "uart_logger_task.h"
 
 /* Board-specific functions */
@@ -41,6 +42,7 @@ static int sdpwr(CLIContext *ctx, char **argv, int argc);
 static int sdwrite(CLIContext *ctx, char **argv, int argc);
 static int logfile_size(CLIContext *ctx, char **argv, int argc);
 static int connect_log(CLIContext *ctx, char **argv, int argc);
+static int disconnect_log(CLIContext *ctx, char **argv, int argc);
 
 /**
  * Declaration of commands. Syntax is as follows:
@@ -63,6 +65,8 @@ const CmdEntry COMMANDS[] = {
     {"sdwrite", sdwrite, "Writes provided string to the SD card"},
     {"filesize", logfile_size, "Gets the size of the log file in bytes"},
     {"connect_log", connect_log, "Connects to the UART console being logged"},
+    {"disconnect_log", disconnect_log,
+     "Disconnects from the UART console being logged"},
     // Add more entries here.
     {NULL, NULL, NULL}};
 
@@ -266,17 +270,22 @@ static int logfile_size(CLIContext *ctx, char **argv, int argc) {
  * @return 0 on success, or another value on failure
  */
 static int connect_log(CLIContext *ctx, char **argv, int argc) {
-    char c;
-    enable_log_forwarding();
-    while (1)
-    {
-        dequeue_logger_data(&c);
-        // temporary. Just a way to get out of loop.
-        cli_printf(ctx, "%c", c);
-        if (c == 'x') {
-            break;
-        }
+    start_log_reader(ctx);
+    return 0;
+}
+
+/**
+ * Disconnects from the UART device being logged, so it's data no longer will
+ * print to the CLI.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int disconnect_log(CLIContext *ctx, char **argv, int argc) {
+    if (stop_log_reader() != 0) {
+        cli_printf(ctx, "Cannot stop log reader from this terminal\r\n");
+        return 255;
     }
-    disable_log_forwarding();
     return 0;
 }

@@ -42,3 +42,16 @@ void disable_log_forwarding(void);
  * @param out: char of data returned from queue.
  */
 void dequeue_logger_data(char *out);
+
+
+/**
+ * Checks if the logger queue has data.
+ * @return true if data is present, or false otherwise.
+ */
+bool logger_has_data(void);
+
+/**
+ * Waits for data to be ready in the logger.
+ * @param timeout: How long to wait for data.
+ */
+void wait_logger_data(int timeout);

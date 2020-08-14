@@ -15,6 +15,7 @@
 /* BIOS Header files */
 #include <ti/sysbios/BIOS.h>
 #include <ti/sysbios/knl/Queue.h>
+#include <ti/sysbios/knl/Semaphore.h>
 #include <ti/sysbios/knl/Task.h>
 
 /* TI-RTOS Header files */
@@ -29,6 +30,12 @@
 // UART configuration.
 #define LOG_BAUD_RATE 115200
 #define UART_LOGDEV Board_UART3
+
+/*
+ * Statically allocated semaphore for data being in queue. See "Semaphore
+ * Creation" in .cfg file.
+ */
+extern Semaphore_Handle logger_data_avail_sem;
 
 /*
  * Statically allocated queue for received UART log data. Used for forward data
@@ -115,6 +122,8 @@ void uart_logger_task_entry(UArg arg0, UArg arg1) {
                     Queue_put(uart_log_queue,
                               &(queue_elements[queue_idx].elem));
                     queue_idx++;
+                    // Post to semaphore so any waiting tasks know we have data.
+                    Semaphore_post(logger_data_avail_sem);
                     if (queue_idx >= MAX_QUEUE) {
                         // Wrap the queue element index back to 0.
                         queue_idx = 0;
@@ -159,9 +168,24 @@ void disable_log_forwarding(void) { FORWARD_UART_LOGS = false; }
 void dequeue_logger_data(char *out) {
     UART_Queue_Elem *elem;
     /*
-     * Remove the element atomically 
+     * Remove the element atomically
      * (we expect other tasks to call this function)
      */
     elem = Queue_get(uart_log_queue);
     *out = elem->data;
+}
+
+/**
+ * Checks if the logger queue has data.
+ * @return true if data is present, or false otherwise.
+ */
+bool logger_has_data(void) { return !(Queue_empty(uart_log_queue)); }
+
+/**
+ * Waits for data to be ready in the logger.
+ * @param timeout: How long to wait for data.
+ */
+void wait_logger_data(int timeout) {
+    // Pend on semaphore here.
+    Semaphore_pend(logger_data_avail_sem, timeout);
 }
