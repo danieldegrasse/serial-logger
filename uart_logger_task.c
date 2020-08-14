@@ -187,3 +187,13 @@ int disable_log_forwarding(void) {
     pthread_mutex_unlock(&LOG_VAR_MUTEX);
     return 0;
 }
+
+/**
+ * Writes to the UART device being logged from.
+ * @param data: buffer of data to write
+ * @param len: length of data to write
+ * @return number of bytes written.
+ */
+int write_to_logger(char* data, int len) {
+    return UART_write(uart, data, len);
+}

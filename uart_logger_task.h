@@ -36,4 +36,12 @@ int enable_log_forwarding(CLIContext *context);
  */
 int disable_log_forwarding(void);
 
+/**
+ * Writes to the UART device being logged from.
+ * @param data: buffer of data to write
+ * @param len: length of data to write
+ * @return number of bytes written.
+ */
+int write_to_logger(char* data, int len);
+
 #endif

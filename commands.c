@@ -42,6 +42,7 @@ static int sdwrite(CLIContext *ctx, char **argv, int argc);
 static int logfile_size(CLIContext *ctx, char **argv, int argc);
 static int connect_log(CLIContext *ctx, char **argv, int argc);
 static int disconnect_log(CLIContext *ctx, char **argv, int argc);
+static int realtime_terminal(CLIContext *ctx, char **argv, int argc);
 
 /**
  * Declaration of commands. Syntax is as follows:
@@ -66,6 +67,8 @@ const CmdEntry COMMANDS[] = {
     {"connect_log", connect_log, "Connects to the UART console being logged"},
     {"disconnect_log", disconnect_log,
      "Disconnects from the UART console being logged"},
+    {"rtt", realtime_terminal,
+     "Opens a 2 way connection to the UART console being logged"},
     // Add more entries here.
     {NULL, NULL, NULL}};
 
@@ -293,4 +296,43 @@ static int disconnect_log(CLIContext *ctx, char **argv, int argc) {
     } else {
         return 0;
     }
+}
+
+/**
+ * Opens a real time terminal to the UART console being logged. This function
+ * will write data to the UART device being logged from, and request that
+ * the logger task print all data it reads to the CLI, creating a two way
+ * connection. Will run this until user enters escape sequence.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int realtime_terminal(CLIContext *ctx, char **argv, int argc) {
+    char input;
+    // First, enable log forwarding.
+    if (enable_log_forwarding(ctx) != 0) {
+        cli_printf(ctx, "Could not start terminal, another console is using "
+                        "log forwarding\r\n");
+        return 255;
+    }
+    /*
+     * Now, enter a loop. Until the user enters the escape sequence CTRL+E,
+     * read all the data they type and write it to the UART device being logged.
+     */
+    cli_printf(ctx, "Starting real time terminal, press CTRL+E to exit\r\n");
+    while (1) {
+        ctx->cli_read(&input, 1);
+        if (input == 5) { // Corresponds to CTRL+E
+            break;
+        }
+        write_to_logger(&input, 1);
+    }
+    // Now that escape sequence was read, disable forwarding and return.
+    if (disable_log_forwarding() != 0) {
+        cli_printf(ctx, "Error, could not disable log forwarding. This should "
+                        "not occur\r\n");
+        return 255;
+    }
+    return 0;
 }
