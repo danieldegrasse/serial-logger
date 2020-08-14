@@ -81,7 +81,7 @@ const CmdEntry COMMANDS[] = {
 int handle_command(CLIContext *ctx, char *cmd) {
     const CmdEntry *entry;
     int argc;
-    char *arguments[MAX_ARGC], *saveptr, cmd_buf[CLI_MAX_LINE];
+    char *arguments[MAX_ARGC], *saveptr, cmd_buf[CLI_MAX_LINE + 1];
     strncpy(cmd_buf, cmd, CLI_MAX_LINE);
     // The parser interprets a space as a delimeter between arguments.
     // Init strtok_r.

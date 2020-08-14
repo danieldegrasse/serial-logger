@@ -3,3 +3,4 @@
 *.map
 sd_logger
 .vscode
+*.bin

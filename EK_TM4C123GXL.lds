@@ -60,7 +60,11 @@ SECTIONS {
     PROVIDE (_vtable_base_address =
         DEFINED(_vtable_base_address) ? _vtable_base_address : 0x20000000);
 
-    .vtable (_vtable_base_address) : AT (_vtable_base_address) {
+    /* 
+     * Mark the vtable as NOLOAD to prevent objcopy from allocating space 
+     * for it. If space is allocated, ROM will be too big.
+     */
+    .vtable (_vtable_base_address) (NOLOAD) : {
         KEEP (*(.vtable))
     } > REGION_DATA
 

@@ -3,6 +3,7 @@ CODEGEN_INSTALL_DIR = /usr
 
 CC = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gcc"
 LNK = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gcc"
+OBJCPY = "$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-objcopy"
 
 XDC_INSTALL_DIR := /home/danieldegrasse/ti/xdctools_3_32_00_06_core
 TIRTOS_INSTALL_DIR := /home/danieldegrasse/ti/tirtos_tivac_2_16_01_14
@@ -22,9 +23,9 @@ UIA_PACKAGES_DIR = $(UIA_INSTALL_DIR)/packages
 
 XDCPATH = $(TIRTOS_PACKAGES_DIR);$(TIDRIVERS_PACKAGES_DIR);$(BIOS_PACKAGES_DIR);$(NDK_PACKAGES_DIR);$(NS_PACKAGES_DIR);$(UIA_PACKAGES_DIR);
 
-CFLAGS = -I$(TIVAWARE_INSTALL_DIR) -I$(BIOS_PACKAGES_DIR)/ti/sysbios/posix -D_POSIX_SOURCE -D PART_TM4C123GH6PM -D gcc -D TIVAWARE -mcpu=cortex-m4 -march=armv7e-m -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -ffunction-sections -fdata-sections -g -gstrict-dwarf -Wall
+CFLAGS = -I$(TIVAWARE_INSTALL_DIR) -I$(BIOS_PACKAGES_DIR)/ti/sysbios/posix -D_POSIX_SOURCE -D PART_TM4C123GH6PM -D gcc -D TIVAWARE -mcpu=cortex-m4 -march=armv7e-m -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -ffunction-sections -fdata-sections -gstrict-dwarf -Wall
 
-LFLAGS = -Wl,-T,EK_TM4C123GXL.lds -Wl,-Map,$(NAME).map -Wl,-T,$(NAME)/linker.cmd -L$(TIVAWARE_INSTALL_DIR)/grlib/gcc -L$(TIVAWARE_INSTALL_DIR)/usblib/gcc -L$(TIVAWARE_INSTALL_DIR)/driverlib/gcc -lgr -lusb -ldriver -march=armv7e-m -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -nostartfiles -static -Wl,--gc-sections -L$(BIOS_PACKAGES_DIR)/gnu/targets/arm/libs/install-native/arm-none-eabi/lib/armv7e-m/fpu -lgcc -lc -lm -lrdimon
+LFLAGS = -Wl,-T,EK_TM4C123GXL.lds -Wl,-Map,$(NAME).map -Wl,-T,$(NAME)/linker.cmd -L$(TIVAWARE_INSTALL_DIR)/grlib/gcc -L$(TIVAWARE_INSTALL_DIR)/usblib/gcc -L$(TIVAWARE_INSTALL_DIR)/driverlib/gcc -lgr -lusb -ldriver -march=armv7e-m -mthumb -mfloat-abi=hard -mfpu=fpv4-sp-d16 -nostartfiles -static -Wl,--gc-sections -L$(BIOS_PACKAGES_DIR)/gnu/targets/arm/libs/install-native/arm-none-eabi/lib/armv7e-m/fpu -lgcc -lc -lm
 
 ###################### SHOULD NOT MODIFY BELOW THIS LINE ############################
 export XDCPATH
@@ -83,7 +84,22 @@ LFLAGS +=
 
 .PRECIOUS: %/compiler.opt %/linker.cmd
 
-all: $(PROG).out
+# Debug builds are the default target
+debug: CFLAGS += -g
+# Add rdimon lib for semihosting
+debug: LFLAGS += -lrdimon
+# Set BUILDTYPE to debug (for the .cfg file)
+debug: BUILDTYPE = debug
+# Do not create a bin file, it won't work with semihosting enabled.
+debug: $(PROG).out
+
+# Release builds add -O2 and remove semihosting
+release: CFLAGS += -O2
+release: LFLAGS += -lnosys
+# Set BUILDTYPE to release (for the .cfg file)
+release: BUILDTYPE = release
+release: $(PROG).bin
+	@echo "Release build complete"
 
 %/compiler.opt: %/linker.cmd;
 
@@ -93,7 +109,8 @@ all: $(PROG).out
 
 %/linker.cmd: %.cfg
 	@ echo Running Configuro...
-	@ $(XDC_INSTALL_DIR)/xs xdc.tools.configuro -c "$(CODEGEN_INSTALL_DIR)" -t $(XDCTARGET) -p $(PLATFORM) --compileOptions "$(CFLAGS)" $(NAME).cfg
+	@ # Add the buildtype variable here
+	@ $(XDC_INSTALL_DIR)/xs xdc.tools.configuro -c "$(CODEGEN_INSTALL_DIR)" -t $(XDCTARGET) -p $(PLATFORM) -Dbuildtype=$(BUILDTYPE) --compileOptions "$(CFLAGS)" $(NAME).cfg
 
 %.obj: %.c $(NAME)/compiler.opt
 	@ echo Building $@
@@ -107,6 +124,10 @@ all: $(PROG).out
 	@ echo Building $@
 	@ $(CC)  $(CFLAGS) $< -c @$(NAME)/compiler.opt -o $@
 
+$(PROG).bin: $(PROG).out
+	@echo creating .bin file...
+	@ $(OBJCPY) -O binary ${<} ${@}
+
 $(PROG).out: $(OBJECTS) $(NAME)/linker.cmd
 	@ echo linking...
 	@ $(LNK)  $(OBJECTS)  $(LFLAGS) -o $(PROG).out
@@ -115,10 +136,11 @@ clean:
 	@ echo Cleaning...
 	@ $(call remove, $(OBJECTS))
 	@ $(call remove, $(PROG).out)
+	@ $(call remove, $(PROG).bin)
 	@ $(call remove, $(NAME).map)
 	@ $(RMDIR) $(NAME)
 
-debug: $(PROG).out
+debugger: $(PROG).out
 	# Start gdb
 	$(CODEGEN_INSTALL_DIR)/bin/arm-none-eabi-gdb --command gdb.command
 
@@ -126,5 +148,5 @@ debugserver:
 	# Run openocd
 	/usr/bin/openocd -f /usr/share/openocd/scripts/board/ek-tm4c123gxl.cfg
 
-.PHONY: debug debugserver
+.PHONY: debugger debugserver
 	
