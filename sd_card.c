@@ -18,6 +18,7 @@
 
 /* XDCtools Header files */
 #include <xdc/runtime/System.h>
+#include <xdc/runtime/Timestamp.h>
 #include <xdc/std.h>
 
 /* Pthread support */
@@ -34,6 +35,7 @@
 #include <ti/mw/fatfs/ff.h>
 
 #include <stdbool.h>
+#include <stdio.h>
 
 // Board header file
 #include "Board.h"
@@ -198,6 +200,19 @@ int write_sd(void *data, int n) {
         GPIO_toggle(Board_WRITE_ACTIVITY_LED);
         return (int)bytes_written;
     }
+}
+
+/**
+ * Writes a timestamp to the SD card logs
+ * @return 0 on success, or another value on error.
+ */
+int write_timestamp(void) {
+    char ts_string_buf[80];
+    int num_chars;
+    // Print the formatted timestamp into buffer.
+    num_chars = snprintf(ts_string_buf, 80, "\n-------Log Timestamp: %lu\n",
+                         Timestamp_get32());
+    return (write_sd(ts_string_buf, num_chars) == num_chars ? 0 : -1);
 }
 
 /**

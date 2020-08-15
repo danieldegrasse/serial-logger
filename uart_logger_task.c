@@ -83,6 +83,7 @@ void uart_logger_prebios(void) {
  */
 void uart_logger_task_entry(UArg arg0, UArg arg1) {
     char read_char;
+    char start_str[] = "\r\n--------UART Logger Boot---------\r\n";
     /*
      * Try to mount the SD card, and if it fails wait for the sd_ready
      * condition.
@@ -91,12 +92,20 @@ void uart_logger_task_entry(UArg arg0, UArg arg1) {
         // Wait for the SD card to be ready and mounted.
         wait_sd_ready();
     }
+    // Write boot notification.
+    if (write_sd(start_str, sizeof(start_str) - 1) != sizeof(start_str) - 1) {
+        System_abort("Could not write start message to SD card");
+    }
     while (1) {
         /**
          * Write to the SD card until it is unmounted
          */
         System_printf("SD card mounted\n");
         System_flush();
+        // Write a notification to the SD card that the logs just started.
+        if (write_timestamp() != 0) {
+            System_abort("Could not write timestamp to SD card");
+        }
         // Now, try to read data from the UART connection.
         while (1) {
             // Read data from the UART.

@@ -21,5 +21,10 @@ void heartBeatFxn(UArg arg0, UArg arg1) {
     while (1) {
         Task_sleep((UInt)arg0);
         GPIO_toggle(Board_LED0);
+        /*
+         * Turn off the SD write LED. This way if the UART logger hasn't 
+         * written data in a while, the LED will be off.
+         */
+        GPIO_write(Board_WRITE_ACTIVITY_LED, Board_LED_OFF);
     }
 }

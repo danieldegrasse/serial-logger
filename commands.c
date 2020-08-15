@@ -43,6 +43,7 @@ static int logfile_size(CLIContext *ctx, char **argv, int argc);
 static int connect_log(CLIContext *ctx, char **argv, int argc);
 static int disconnect_log(CLIContext *ctx, char **argv, int argc);
 static int realtime_terminal(CLIContext *ctx, char **argv, int argc);
+static int write_ts(CLIContext *ctx, char **argv, int argc);
 
 /**
  * Declaration of commands. Syntax is as follows:
@@ -57,13 +58,16 @@ const CmdEntry COMMANDS[] = {
     {"help", help,
      "Prints help for this commandline.\r\n"
      "supply the name of a command after \"help\" for help with that command"},
-    {"mount", mount, "Mounts the SD card"},
+    {"mount", mount,
+     "Mounts the SD card. Powering on the SD card slot before inserting the "
+     "card may be required."},
     {"unmount", unmount, "Unmounts the SD card"},
     {"sdstatus", sdstatus, "Gets the mount and power status of the SD card"},
     {"sdpwr", sdpwr,
      "Sets the power status of SD card: \"sdpwr on\" or \"sdpwr off\""},
-    {"sdwrite", sdwrite, "Writes provided string to the SD card"},
+    {"write_sd", sdwrite, "Writes provided string to the SD card"},
     {"filesize", logfile_size, "Gets the size of the log file in bytes"},
+    {"write_timestamp", write_ts, "Writes a timestamp to the SD card log"},
     {"connect_log", connect_log, "Connects to the UART console being logged"},
     {"disconnect_log", disconnect_log,
      "Disconnects from the UART console being logged"},
@@ -332,6 +336,22 @@ static int realtime_terminal(CLIContext *ctx, char **argv, int argc) {
     if (disable_log_forwarding() != 0) {
         cli_printf(ctx, "Error, could not disable log forwarding. This should "
                         "not occur\r\n");
+        return 255;
+    }
+    return 0;
+}
+
+/**
+ * Writes a timestamp into the SD card log file.
+ * @param ctx: CLI context to print to
+ * @param argv list of arguments
+ * @param argc argument count
+ * @return 0 on success, or another value on failure
+ */
+static int write_ts(CLIContext *ctx, char **argv, int argc) {
+    if (write_timestamp() != 0) {
+        cli_printf(ctx,
+                   "SD card write write error: could not write timestamp\r\n");
         return 255;
     }
     return 0;

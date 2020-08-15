@@ -64,4 +64,10 @@ int write_sd(void *data, int n);
  */
 int filesize(void);
 
+/**
+ * Writes a timestamp to the SD card logs
+ * @return 0 on success, or another value on error.
+ */
+int write_timestamp(void);
+
 #endif
