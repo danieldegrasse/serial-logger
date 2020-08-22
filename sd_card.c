@@ -65,8 +65,6 @@ void sd_setup(void) {
     }
     // Set up SPI bus.
     Board_initSDSPI();
-    // Enable GPIO.
-    Board_initGPIO();
 }
 
 /**
