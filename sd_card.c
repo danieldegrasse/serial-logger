@@ -210,8 +210,9 @@ int write_timestamp(void) {
     char ts_string_buf[80];
     int num_chars;
     // Print the formatted timestamp into buffer.
-    num_chars = snprintf(ts_string_buf, 80, "\n-------Log Timestamp: %lu\n",
-                         Timestamp_get32());
+    num_chars =
+        snprintf(ts_string_buf, 80, "\n-------Log Timestamp: %lu -----------\n",
+                 Timestamp_get32());
     return (write_sd(ts_string_buf, num_chars) == num_chars ? 0 : -1);
 }
 
